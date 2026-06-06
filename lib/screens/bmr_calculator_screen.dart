@@ -361,6 +361,7 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
     // Capture refs before any async gap to avoid BuildContext-across-await issues.
     final provider = context.read<DiaryProvider>();
     final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -386,7 +387,7 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
         // in-memory goal is updated regardless. Don't block navigation.
       }
       if (mounted) {
-        Navigator.pop(context);
+        navigator.pop();
         messenger.showSnackBar(
           SnackBar(content: Text('Daily goal set to $tdee kcal')),
         );

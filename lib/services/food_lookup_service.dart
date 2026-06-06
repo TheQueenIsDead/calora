@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/food_item.dart';
 import 'database_service.dart';
@@ -28,7 +29,7 @@ class FoodLookupService {
       await DatabaseService.instance.saveFood(food);
       return food;
     } catch (e) {
-      print('[FoodLookup] barcode lookup error: $e');
+      debugPrint('[FoodLookup] barcode lookup error: $e');
       return null;
     }
   }

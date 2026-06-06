@@ -72,7 +72,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
                 final description = r['description'] as String?;
                 final subtitleParts = [
                   if (description != null && description.isNotEmpty) description,
-                  if (kcalStr != null) kcalStr,
+                  ?kcalStr,
                 ];
                 return ListTile(
                   leading: const Icon(Icons.menu_book_outlined),
