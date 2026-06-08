@@ -36,17 +36,28 @@ class WaterVessel {
   ];
 
   static const List<IconData> availableIcons = [
-    Icons.local_drink,
-    Icons.coffee,
-    Icons.emoji_food_beverage,
-    Icons.free_breakfast,
-    Icons.local_cafe,
-    Icons.sports_bar,
-    Icons.liquor,
-    Icons.wine_bar,
-    Icons.local_bar,
-    Icons.water_drop,
-    Icons.blender,
-    Icons.kitchen,
+    // Tumblers / lidded cups (Stanley-style)
+    Icons.takeout_dining,      // lidded cup with straw — closest to a Stanley
+    Icons.local_drink,         // cup with straw / tumbler
+    Icons.sports_bar,          // tall pint-style cup
+    Icons.free_breakfast,      // wide mug
+    // Hot drinks
+    Icons.coffee,              // espresso cup
+    Icons.local_cafe,          // cup with saucer
+    Icons.emoji_food_beverage, // hot cup with steam
+    Icons.coffee_maker,        // carafe / pour-over
+    // Bottles
+    Icons.liquor,              // tall slim bottle
+    Icons.science,             // flask / wide-mouth bottle (Nalgene-style)
+    Icons.water,               // water waves — general hydration
+    Icons.water_drop,          // single drop
+    // Bar / other vessels
+    Icons.wine_bar,            // stemmed glass
+    Icons.local_bar,           // cocktail glass
+    Icons.blender,             // blender jar
+    // Contextual / insulated
+    Icons.thermostat,          // thermal / insulated (Stanley / Hydro Flask)
+    Icons.fitness_center,      // gym / sports bottle context
+    Icons.kitchen,             // kitchen jug
   ];
 }
