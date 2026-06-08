@@ -66,7 +66,7 @@ class MealSection extends StatelessWidget {
                             color: theme.colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w600),
                       ),
-                      if (!isLocked && onSaveAsRecipe != null) ...[
+                      if (onSaveAsRecipe != null) ...[
                         const SizedBox(width: 4),
                         InkWell(
                           onTap: onSaveAsRecipe,
