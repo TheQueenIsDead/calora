@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:calora/models/diary_entry.dart';
 import 'package:calora/models/food_item.dart';
+import 'package:calora/models/water_vessel.dart';
 import 'package:calora/providers/diary_provider.dart';
 import 'package:calora/services/database_service.dart';
 
@@ -22,11 +23,14 @@ FoodItem _testFood() => FoodItem(
 
 void main() {
   setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
+    // Wipe any DB files from previous runs so calorie-total assertions start clean.
+    await DatabaseService.instance.closeForTesting();
     SharedPreferences.setMockInitialValues({});
-    // Pre-open the DB once here (may take a moment on first FFI init) so
-    // individual tests reuse the cached connection and stay within 30s.
+    // Pre-open the DB once (may take a moment on first FFI init) so tests
+    // reuse the cached connection and stay within their 30s timeout.
     await DatabaseService.instance.userDb;
   });
 
@@ -221,5 +225,278 @@ void main() {
     expect(diary.remainingCalories, lessThan(0)); // over goal
     // isOverTdee must be false when TDEE is 0 — falls back to two-state (over goal only)
     expect(diary.tdee > 0 && diary.totalCalories > diary.tdee, isFalse);
+  });
+
+  // ── deleteEntry (hard delete) ─────────────────────────────────────────────
+
+  test('deleteEntry: removes entry from the entries list immediately', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+
+    final entry = DiaryEntry(
+      id: const Uuid().v4(),
+      food: _testFood(),
+      grams: 100,
+      date: DateTime.now(),
+      meal: Meal.snack,
+    );
+    await diary.addEntry(entry);
+    expect(diary.entries.any((e) => e.id == entry.id), isTrue);
+
+    await diary.deleteEntry(entry.id);
+    expect(diary.entries.any((e) => e.id == entry.id), isFalse);
+  });
+
+  test('deleteEntry: is permanent — undoDelete has no effect afterwards', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+
+    final entry = DiaryEntry(
+      id: const Uuid().v4(),
+      food: _testFood(),
+      grams: 100,
+      date: DateTime.now(),
+      meal: Meal.snack,
+    );
+    await diary.addEntry(entry);
+    await diary.deleteEntry(entry.id);
+
+    // undoDelete should be a no-op because the entry was hard-deleted, not soft-deleted
+    diary.undoDelete(entry.id);
+    expect(diary.entries.any((e) => e.id == entry.id), isFalse);
+  });
+
+  // ── toggleLock ────────────────────────────────────────────────────────────
+
+  test('toggleLock: flips isLocked state on successive calls', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+    expect(diary.isLocked, isFalse);
+
+    await diary.toggleLock();
+    expect(diary.isLocked, isTrue);
+
+    await diary.toggleLock();
+    expect(diary.isLocked, isFalse);
+  });
+
+  test('lock guard: mutation methods are silently ignored when day is locked', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+
+    final entry = DiaryEntry(
+      id: const Uuid().v4(),
+      food: _testFood(),
+      grams: 100,
+      date: DateTime.now(),
+      meal: Meal.lunch,
+    );
+    await diary.addEntry(entry);
+    final countBefore = diary.entries.length;
+
+    await diary.toggleLock();
+    final tokenAfterLock = diary.changeToken;
+
+    // addEntry should be ignored
+    await diary.addEntry(DiaryEntry(
+      id: const Uuid().v4(),
+      food: _testFood(),
+      grams: 50,
+      date: DateTime.now(),
+      meal: Meal.lunch,
+    ));
+    expect(diary.entries.length, countBefore);
+
+    // updateEntryGrams should be ignored
+    await diary.updateEntryGrams(entry.id, 999);
+    expect(diary.entries.firstWhere((e) => e.id == entry.id).grams, 100);
+
+    // softDeleteEntry should return null without removing the entry
+    final removed = await diary.softDeleteEntry(entry.id);
+    expect(removed, isNull);
+    expect(diary.entries.any((e) => e.id == entry.id), isTrue);
+
+    // deleteEntry should be ignored
+    await diary.deleteEntry(entry.id);
+    expect(diary.entries.any((e) => e.id == entry.id), isTrue);
+
+    // moveEntry should be a no-op
+    await diary.moveEntry(entry.id, Meal.dinner);
+    expect(diary.entries.firstWhere((e) => e.id == entry.id).meal, Meal.lunch);
+
+    // changeToken must not have incremented during any locked operation
+    expect(diary.changeToken, tokenAfterLock);
+  });
+
+  test('lock guard: addWaterMl and removeWaterMl are blocked when locked', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+    await diary.addWaterMl(500);
+    final waterBefore = diary.waterMl;
+
+    await diary.toggleLock();
+
+    await diary.addWaterMl(250);
+    expect(diary.waterMl, waterBefore);
+
+    await diary.removeWaterMl(100);
+    expect(diary.waterMl, waterBefore);
+  });
+
+  // ── moveEntry ─────────────────────────────────────────────────────────────
+
+  test('moveEntry: reassigns entry to a different meal slot', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+
+    final entry = DiaryEntry(
+      id: const Uuid().v4(),
+      food: _testFood(),
+      grams: 100,
+      date: DateTime.now(),
+      meal: Meal.breakfast,
+    );
+    await diary.addEntry(entry);
+    expect(diary.entriesForMeal(Meal.breakfast).any((e) => e.id == entry.id), isTrue);
+
+    await diary.moveEntry(entry.id, Meal.dinner);
+    expect(diary.entriesForMeal(Meal.breakfast).any((e) => e.id == entry.id), isFalse);
+    expect(diary.entriesForMeal(Meal.dinner).any((e) => e.id == entry.id), isTrue);
+  });
+
+  test('moveEntry: increments changeToken', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+
+    final entry = DiaryEntry(
+      id: const Uuid().v4(),
+      food: _testFood(),
+      grams: 100,
+      date: DateTime.now(),
+      meal: Meal.breakfast,
+    );
+    await diary.addEntry(entry);
+    final tokenBefore = diary.changeToken;
+
+    await diary.moveEntry(entry.id, Meal.lunch);
+    expect(diary.changeToken, greaterThan(tokenBefore));
+  });
+
+  // ── Water tracking ────────────────────────────────────────────────────────
+
+  test('addWaterMl: accumulates water volume', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+    await diary.addWaterMl(250);
+    await diary.addWaterMl(350);
+    expect(diary.waterMl, 600);
+  });
+
+  test('removeWaterMl: clamps at zero — never goes negative', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+    // waterMl starts at 0; removing 500 must clamp to 0
+    await diary.removeWaterMl(500);
+    expect(diary.waterMl, 0);
+  });
+
+  test('setWaterTargetMl: clamps to [1, 99999]', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+
+    await diary.setWaterTargetMl(0);
+    expect(diary.waterTargetMl, 1);
+
+    await diary.setWaterTargetMl(100000);
+    expect(diary.waterTargetMl, 99999);
+
+    await diary.setWaterTargetMl(2000);
+    expect(diary.waterTargetMl, 2000);
+  });
+
+  test('waterProgress: reflects proportion of target consumed, capped at 1.0', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+    await diary.setWaterTargetMl(1000);
+
+    await diary.addWaterMl(500);
+    expect(diary.waterProgress, closeTo(0.5, 0.01));
+
+    await diary.addWaterMl(600); // total 1100ml — over target, progress capped
+    expect(diary.waterProgress, closeTo(1.0, 0.01));
+  });
+
+  // ── setBmr ────────────────────────────────────────────────────────────────
+
+  test('setBmr: persists the BMR value in the provider', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+    expect(diary.bmr, 0);
+
+    await diary.setBmr(1800);
+    expect(diary.bmr, 1800);
+  });
+
+  // ── setVessels ────────────────────────────────────────────────────────────
+
+  test('setVessels: replaces the vessels list', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+
+    const vessel = WaterVessel(
+      id: 'test_vessel_001',
+      name: 'Test Cup',
+      ml: 300,
+      iconCodePoint: 0xe63f, // Icons.local_drink code point
+    );
+    await diary.setVessels([vessel]);
+    expect(diary.vessels.length, 1);
+    expect(diary.vessels.first.id, 'test_vessel_001');
+    expect(diary.vessels.first.ml, 300);
+  });
+
+  // ── createRecipeFromMeal ──────────────────────────────────────────────────
+
+  test('createRecipeFromMeal: collapses meal entries into a single recipe entry', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+    final testDate = DateTime(2099, 8, 1);
+    await diary.loadDay(testDate);
+
+    await diary.addEntry(DiaryEntry(
+      id: const Uuid().v4(),
+      food: _testFood(),
+      grams: 100,
+      date: testDate,
+      meal: Meal.dinner,
+    ));
+    await diary.addEntry(DiaryEntry(
+      id: const Uuid().v4(),
+      food: _testFood(),
+      grams: 200,
+      date: testDate,
+      meal: Meal.dinner,
+    ));
+    expect(diary.entriesForMeal(Meal.dinner).length, 2);
+
+    await diary.createRecipeFromMeal(Meal.dinner, 'My Test Recipe');
+
+    final dinnerEntries = diary.entriesForMeal(Meal.dinner);
+    expect(dinnerEntries.length, 1);
+    expect(dinnerEntries.first.food.name, 'My Test Recipe');
+    expect(dinnerEntries.first.food.source, 'custom');
+  });
+
+  test('createRecipeFromMeal: no-op when meal has no entries', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+    final testDate = DateTime(2099, 8, 2);
+    await diary.loadDay(testDate);
+    final tokenBefore = diary.changeToken;
+
+    await diary.createRecipeFromMeal(Meal.snack, 'Empty Recipe');
+
+    expect(diary.changeToken, tokenBefore);
+    expect(diary.entriesForMeal(Meal.snack), isEmpty);
   });
 }
