@@ -263,56 +263,69 @@ class _WaterCard extends StatelessWidget {
   final DiaryProvider diary;
   const _WaterCard({required this.diary});
 
+  String _mlLabel(int ml) {
+    if (ml == 0) return '0\nml';
+    if (ml >= 1000) {
+      final l = ml / 1000;
+      return '${l % 1 == 0 ? l.toInt() : l.toStringAsFixed(1)}\nL';
+    }
+    return '$ml\nml';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final ml = diary.waterMl;
+    final targetMl = diary.waterTargetMl;
     final vessels = diary.vessels;
-
-    String mlLabel() {
-      if (ml == 0) return '0 ml';
-      if (ml >= 1000) return '${(ml / 1000).toStringAsFixed(ml % 100 == 0 ? 1 : 2)}L';
-      return '$ml ml';
-    }
+    final onBg = theme.colorScheme.onSecondaryContainer;
 
     return Card(
       elevation: 0,
       color: theme.colorScheme.secondaryContainer,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.all(14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(Icons.water_drop_outlined, color: theme.colorScheme.onSecondaryContainer),
-            const SizedBox(width: 12),
+            CalorieRing(
+              progress: diary.waterProgress,
+              size: 72,
+              label: _mlLabel(ml),
+              color: Colors.lightBlue.shade400,
+              labelColor: onBg,
+              backgroundColor: Colors.lightBlue.withValues(alpha: 0.15),
+            ),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Water',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSecondaryContainer.withValues(alpha: 0.7),
-                    ),
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: onBg.withValues(alpha: 0.7)),
                   ),
                   Text(
-                    mlLabel(),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.onSecondaryContainer,
-                    ),
+                    'Target  $targetMl ml',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: onBg.withValues(alpha: 0.65)),
                   ),
                   if (vessels.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 6,
                       runSpacing: 4,
-                      children: vessels.map((v) => _VesselChip(
-                        vessel: v,
-                        onTap: () => diary.addWaterMl(v.ml),
-                        onLongPress: ml >= v.ml ? () => diary.removeWaterMl(v.ml) : null,
-                        color: theme.colorScheme.onSecondaryContainer,
-                      )).toList(),
+                      children: vessels
+                          .map((v) => _VesselChip(
+                                vessel: v,
+                                onTap: () => diary.addWaterMl(v.ml),
+                                onLongPress: ml >= v.ml
+                                    ? () => diary.removeWaterMl(v.ml)
+                                    : null,
+                                color: onBg,
+                              ))
+                          .toList(),
                     ),
                   ],
                 ],
