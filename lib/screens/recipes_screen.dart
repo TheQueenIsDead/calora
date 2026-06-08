@@ -223,6 +223,30 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     _load();
   }
 
+  Future<void> _deleteRecipe() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete recipe?'),
+        content: Text('This will permanently delete "$_name" and all its ingredients.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await DatabaseService.instance.deleteRecipe(widget.recipeId);
+    if (mounted) Navigator.pop(context);
+  }
+
   Future<void> _editServings() async {
     final controller = TextEditingController(text: _servings.toString());
     final result = await showDialog<int>(
@@ -295,6 +319,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             icon: const Icon(Icons.edit_outlined),
             tooltip: 'Rename recipe',
             onPressed: _rename,
+          ),
+          IconButton(
+            icon: Icon(Icons.delete_outline,
+                color: Theme.of(context).colorScheme.error),
+            tooltip: 'Delete recipe',
+            onPressed: _deleteRecipe,
           ),
         ],
       ),

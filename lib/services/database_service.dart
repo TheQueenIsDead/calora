@@ -60,7 +60,7 @@ class DatabaseService {
   Future<Database> _openUserDb() async {
     final dir = await getDatabasesPath();
     final path = join(dir, 'calora_user.db');
-    return openDatabase(
+    final db = await openDatabase(
       path,
       version: _kUserVersion,
       onCreate: _createUserSchema,
@@ -71,17 +71,20 @@ class DatabaseService {
               'ALTER TABLE recipes ADD COLUMN servings INTEGER NOT NULL DEFAULT 1');
         }
       },
-      onOpen: (db) async {
-        // Idempotent guards — ensure schema additions land even on devices
-        // where onUpgrade was skipped due to version tracking quirks.
-        await _createGoalHistoryTable(db);
-        final cols = await db.rawQuery('PRAGMA table_info(recipes)');
-        if (!cols.any((c) => c['name'] == 'servings')) {
-          await db.execute(
-              'ALTER TABLE recipes ADD COLUMN servings INTEGER NOT NULL DEFAULT 1');
-        }
-      },
     );
+    // Run guards after openDatabase returns so they are guaranteed to execute
+    // before the handle is used, regardless of whether onUpgrade fired.
+    await _createGoalHistoryTable(db);
+    await _ensureRecipesServingsColumn(db);
+    return db;
+  }
+
+  Future<void> _ensureRecipesServingsColumn(Database db) async {
+    final cols = await db.rawQuery('PRAGMA table_info(recipes)');
+    if (!cols.any((c) => c['name'] == 'servings')) {
+      await db.execute(
+          'ALTER TABLE recipes ADD COLUMN servings INTEGER NOT NULL DEFAULT 1');
+    }
   }
 
   Future<void> _createGoalHistoryTable(Database db) async {
