@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
@@ -13,10 +14,35 @@ class DatabaseService {
   static DatabaseService? _instance;
   static Database? _foodsDb;
   static Database? _userDb;
+  // Guards against concurrent opens: multiple callers share one in-flight Future.
+  static Completer<Database>? _foodsDbOpening;
+  static Completer<Database>? _userDbOpening;
   List<String>? _vocabulary;
 
   DatabaseService._();
   static DatabaseService get instance => _instance ??= DatabaseService._();
+
+  // Closes open connections, clears cached state, and deletes DB files.
+  // For use in tests only — gives each test a clean slate.
+  Future<void> closeForTesting() async {
+    // Wait for any in-progress opens before closing so nothing is left orphaned.
+    await _userDbOpening?.future.then((_) {}, onError: (_) {});
+    await _foodsDbOpening?.future.then((_) {}, onError: (_) {});
+    await _foodsDb?.close();
+    await _userDb?.close();
+    _foodsDb = null;
+    _userDb = null;
+    _foodsDbOpening = null;
+    _userDbOpening = null;
+    _vocabulary = null;
+    final dir = await getDatabasesPath();
+    for (final name in ['calora_user.db', 'calora_foods.db']) {
+      for (final suffix in ['', '-wal', '-shm']) {
+        final f = File(join(dir, '$name$suffix'));
+        if (f.existsSync()) f.deleteSync();
+      }
+    }
+  }
 
   // ── DB version constants ──────────────────────────────────────────────────
 
@@ -26,13 +52,25 @@ class DatabaseService {
   // ── Connection accessors ──────────────────────────────────────────────────
 
   Future<Database> get foodsDb async {
-    _foodsDb ??= await _openFoodsDb();
-    return _foodsDb!;
+    if (_foodsDb != null) return _foodsDb!;
+    if (_foodsDbOpening != null) return _foodsDbOpening!.future;
+    final c = _foodsDbOpening = Completer<Database>();
+    _openFoodsDb().then(
+      (db) { _foodsDb = db; c.complete(db); },
+      onError: c.completeError,
+    ).whenComplete(() { _foodsDbOpening = null; });
+    return c.future;
   }
 
   Future<Database> get userDb async {
-    _userDb ??= await _openUserDb();
-    return _userDb!;
+    if (_userDb != null) return _userDb!;
+    if (_userDbOpening != null) return _userDbOpening!.future;
+    final c = _userDbOpening = Completer<Database>();
+    _openUserDb().then(
+      (db) { _userDb = db; c.complete(db); },
+      onError: c.completeError,
+    ).whenComplete(() { _userDbOpening = null; });
+    return c.future;
   }
 
   // ── Foods DB (seed-backed, safe to wipe) ─────────────────────────────────
