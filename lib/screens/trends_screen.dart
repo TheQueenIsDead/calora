@@ -18,7 +18,6 @@ class _TrendsScreenState extends State<TrendsScreen> {
   Map<String, double> _dailyCalories = {};
   Map<String, int> _dailyGoals = {};
   Map<String, Map<String, double>> _dailyMacros = {};
-  int _tdee = 0;
   bool _loading = true;
 
   @override
@@ -30,9 +29,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
   Future<void> _load() async {
     final to = DateTime.now();
     final from = to.subtract(const Duration(days: _days - 1));
-    final provider = context.read<DiaryProvider>();
-    final fallback = provider.currentGoal;
-    final tdee = provider.tdee;
+    final fallback = context.read<DiaryProvider>().currentGoal;
     final results = await Future.wait([
       DatabaseService.instance.getDailyCalories(from, to),
       DatabaseService.instance.getDailyGoals(from, to, fallback),
@@ -43,7 +40,6 @@ class _TrendsScreenState extends State<TrendsScreen> {
         _dailyCalories = results[0] as Map<String, double>;
         _dailyGoals = results[1] as Map<String, int>;
         _dailyMacros = results[2] as Map<String, Map<String, double>>;
-        _tdee = tdee;
         _loading = false;
       });
     }
@@ -51,6 +47,8 @@ class _TrendsScreenState extends State<TrendsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Read TDEE live so the chart reacts immediately when the user updates it.
+    final tdee = context.watch<DiaryProvider>().tdee;
     return Scaffold(
       appBar: AppBar(title: const Text('Trends')),
       body: _loading
@@ -67,7 +65,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
                     dailyCalories: _dailyCalories,
                     dailyGoals: _dailyGoals,
                     days: _days,
-                    tdee: _tdee,
+                    tdee: tdee,
                   ),
                   const SizedBox(height: 16),
                   _MacroChart(dailyMacros: _dailyMacros, days: _days),
