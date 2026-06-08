@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
@@ -11,110 +12,142 @@ import '../widgets/meal_section.dart';
 import 'add_food_screen.dart';
 import 'food_detail_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Consumer<DiaryProvider>(
-      builder: (context, diary, _) {
-        return Scaffold(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          appBar: AppBar(
-            leading: IconButton(
-              icon: Icon(diary.isLocked ? Icons.lock : Icons.lock_open),
-              tooltip: diary.isLocked ? 'Unlock day' : 'Lock day',
-              onPressed: diary.toggleLock,
-            ),
-            title: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left),
-                  onPressed: () => diary.loadDay(
-                    diary.selectedDate.subtract(const Duration(days: 1)),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => _pickDate(context, diary),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _formatDate(diary.selectedDate),
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.keyboard_arrow_down, size: 20),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_right),
-                  onPressed: _isToday(diary.selectedDate) ? null : () => diary.loadDay(
-                    diary.selectedDate.add(const Duration(days: 1)),
-                  ),
-                ),
-              ],
-            ),
-            centerTitle: true,
-          ),
-          body: diary.loading
-              ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                  onRefresh: () => diary.loadDay(diary.selectedDate),
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      _WeekStrip(
-                        selectedDate: diary.selectedDate,
-                        changeToken: diary.changeToken,
-                        onDateSelected: diary.loadDay,
-                      ),
-                      const SizedBox(height: 12),
-                      _SummaryCard(diary: diary),
-                      const SizedBox(height: 12),
-                      _WaterCard(diary: diary, isLocked: diary.isLocked),
-                      const SizedBox(height: 20),
-                      for (final meal in Meal.values)
-                        MealSection(
-                          meal: meal,
-                          entries: diary.entriesForMeal(meal),
-                          onDelete: (id) => _handleDelete(context, diary, id),
-                          onEdit: (entry) => _editEntry(context, entry),
-                          onAdd: () => _addFood(context, meal),
-                          onMove: (entry, target) =>
-                              diary.moveEntry(entry.id, target),
-                          onSaveAsRecipe: () => _saveAsRecipe(context, meal),
-                          isLocked: diary.isLocked,
-                        ),
-                      const SizedBox(height: 16),
-                    ],
-                  ),
-                ),
-        );
-      },
-    );
-  }
+  State<HomeScreen> createState() => _HomeScreenState();
+}
 
-  Future<void> _handleDelete(BuildContext context, DiaryProvider diary, String id) async {
-    final entry = await diary.softDeleteEntry(id);
-    if (entry == null || !context.mounted) return;
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Removed ${entry.food.formattedName}'),
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: 'Undo',
-          onPressed: () => diary.undoDelete(id),
-        ),
+class _HomeScreenState extends State<HomeScreen> {
+  // Pinned key so snackbars always target this specific ScaffoldMessenger,
+  // bypassing the global messenger that all tab Scaffolds share via IndexedStack.
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+  // External Dart timer to guarantee snackbar dismissal. ScaffoldMessenger's
+  // internal ticker-based timer can be disrupted by Consumer rebuilds.
+  Timer? _snackDismissTimer;
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaffoldMessenger(
+      key: _messengerKey,
+      child: Consumer<DiaryProvider>(
+        builder: (context, diary, _) {
+          return Scaffold(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            appBar: AppBar(
+              leading: IconButton(
+                icon: Icon(diary.isLocked ? Icons.lock : Icons.lock_open),
+                tooltip: diary.isLocked ? 'Unlock day' : 'Lock day',
+                onPressed: diary.toggleLock,
+              ),
+              title: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left),
+                    onPressed: () => diary.loadDay(
+                      diary.selectedDate.subtract(const Duration(days: 1)),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => _pickDate(diary),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _formatDate(diary.selectedDate),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.keyboard_arrow_down, size: 20),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right),
+                    onPressed: _isToday(diary.selectedDate)
+                        ? null
+                        : () => diary.loadDay(
+                              diary.selectedDate.add(const Duration(days: 1)),
+                            ),
+                  ),
+                ],
+              ),
+              centerTitle: true,
+            ),
+            body: diary.loading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: () => diary.loadDay(diary.selectedDate),
+                    child: ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        _WeekStrip(
+                          selectedDate: diary.selectedDate,
+                          changeToken: diary.changeToken,
+                          onDateSelected: diary.loadDay,
+                        ),
+                        const SizedBox(height: 12),
+                        _SummaryCard(diary: diary),
+                        const SizedBox(height: 12),
+                        _WaterCard(diary: diary, isLocked: diary.isLocked),
+                        const SizedBox(height: 20),
+                        for (final meal in Meal.values)
+                          MealSection(
+                            meal: meal,
+                            entries: diary.entriesForMeal(meal),
+                            onDelete: (id) => _handleDelete(diary, id),
+                            onEdit: _editEntry,
+                            onAdd: () => _addFood(meal),
+                            onMove: (entry, target) =>
+                                diary.moveEntry(entry.id, target),
+                            onSaveAsRecipe: () => _saveAsRecipe(diary, meal),
+                            isLocked: diary.isLocked,
+                          ),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+          );
+        },
       ),
     );
   }
 
-  Future<void> _saveAsRecipe(BuildContext context, Meal meal) async {
-    final diary = context.read<DiaryProvider>();
+  @override
+  void dispose() {
+    _snackDismissTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _handleDelete(DiaryProvider diary, String id) async {
+    final entry = await diary.softDeleteEntry(id);
+    if (entry == null || !mounted) return;
+    _snackDismissTimer?.cancel();
+    _messengerKey.currentState
+      ?..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Removed ${entry.food.formattedName}'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () {
+              _snackDismissTimer?.cancel();
+              diary.undoDelete(id);
+            },
+          ),
+        ),
+      );
+    // Belt-and-suspenders: Dart Timer is independent of Flutter's ticker/
+    // TickerMode so it fires even when ScaffoldMessenger's own timer doesn't.
+    _snackDismissTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) _messengerKey.currentState?.clearSnackBars();
+    });
+  }
+
+  Future<void> _saveAsRecipe(DiaryProvider diary, Meal meal) async {
     final controller = TextEditingController();
     final name = await showDialog<String>(
       context: context,
@@ -135,17 +168,17 @@ class HomeScreen extends StatelessWidget {
         ],
       ),
     );
-    if (name != null && name.isNotEmpty && context.mounted) {
+    if (name != null && name.isNotEmpty && mounted) {
       await diary.createRecipeFromMeal(meal, name);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        _messengerKey.currentState?.showSnackBar(
           SnackBar(content: Text('Saved "$name" as a recipe')),
         );
       }
     }
   }
 
-  Future<void> _editEntry(BuildContext context, DiaryEntry entry) async {
+  Future<void> _editEntry(DiaryEntry entry) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -159,14 +192,14 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _addFood(BuildContext context, Meal meal) async {
+  Future<void> _addFood(Meal meal) async {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => AddFoodScreen(defaultMeal: meal)),
     );
   }
 
-  Future<void> _pickDate(BuildContext context, DiaryProvider diary) async {
+  Future<void> _pickDate(DiaryProvider diary) async {
     final picked = await showDatePicker(
       context: context,
       initialDate: diary.selectedDate,
