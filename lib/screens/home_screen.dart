@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/diary_entry.dart';
@@ -302,6 +303,16 @@ class _WaterCardState extends State<_WaterCard> {
                 children: [
                   Row(
                     children: [
+                      SvgPicture.asset(
+                        'assets/icons/water_bottle.svg',
+                        width: 14,
+                        height: 14,
+                        colorFilter: ColorFilter.mode(
+                          onBg.withValues(alpha: 0.7),
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
                       Text(
                         'Water',
                         style: theme.textTheme.labelSmall
