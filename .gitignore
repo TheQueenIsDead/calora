@@ -1,3 +1,6 @@
+# Raw food data sources — large, not needed for the app
+data/
+
 # Keystores — never commit these
 *.keystore
 *.jks
