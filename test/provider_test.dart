@@ -88,4 +88,56 @@ void main() {
     diary.undoDelete(entry.id);
     expect(diary.entries.any((e) => e.id == entry.id), isTrue);
   });
+
+  test('changeToken increments on entry mutations (WeekStrip reactivity)', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+    final initial = diary.changeToken;
+
+    final entry = DiaryEntry(
+      id: const Uuid().v4(),
+      food: _testFood(),
+      grams: 150,
+      date: DateTime.now(),
+      meal: Meal.breakfast,
+    );
+    await diary.addEntry(entry);
+    expect(diary.changeToken, greaterThan(initial));
+
+    final afterAdd = diary.changeToken;
+    await diary.softDeleteEntry(entry.id);
+    expect(diary.changeToken, greaterThan(afterAdd));
+
+    final afterDelete = diary.changeToken;
+    diary.undoDelete(entry.id);
+    expect(diary.changeToken, greaterThan(afterDelete));
+  });
+
+  test('updateEntryGrams persists new grams', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+
+    final food = _testFood();
+    final entry = DiaryEntry(
+      id: const Uuid().v4(),
+      food: food,
+      grams: 100,
+      date: DateTime.now(),
+      meal: Meal.lunch,
+    );
+    await diary.addEntry(entry);
+
+    await diary.updateEntryGrams(entry.id, 250);
+
+    final updated = diary.entries.firstWhere((e) => e.id == entry.id);
+    expect(updated.grams, 250);
+  });
+
+  test('last-used grams are saved and retrieved', () async {
+    final food = _testFood();
+    await DatabaseService.instance.saveFood(food);
+    await DatabaseService.instance.saveLastUsedGrams(food.id, 175);
+    final result = await DatabaseService.instance.getLastUsedGrams(food.id);
+    expect(result, 175.0);
+  });
 }

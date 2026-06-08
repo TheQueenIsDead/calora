@@ -20,9 +20,11 @@ class DiaryProvider extends ChangeNotifier {
   int _bmr = 0;
   int _tdee = 0;
   List<WaterVessel> _vessels = [];
+  int _changeToken = 0;
 
   List<DiaryEntry> get entries => _entries;
   DateTime get selectedDate => _selectedDate;
+  int get changeToken => _changeToken;
   int get currentGoal => _currentGoal;
   int get dailyGoal => _dailyGoal;
   int get waterTargetMl => _waterTargetMl;
@@ -79,6 +81,14 @@ class DiaryProvider extends ChangeNotifier {
   Future<void> addEntry(DiaryEntry entry) async {
     if (_isLocked) return;
     await DatabaseService.instance.addDiaryEntry(entry);
+    _changeToken++;
+    await loadDay(_selectedDate);
+  }
+
+  Future<void> updateEntryGrams(String id, double grams) async {
+    if (_isLocked) return;
+    await DatabaseService.instance.updateDiaryEntryGrams(id, grams);
+    _changeToken++;
     await loadDay(_selectedDate);
   }
 
@@ -100,6 +110,7 @@ class DiaryProvider extends ChangeNotifier {
       const Duration(seconds: 5),
       () => _commitDelete(id),
     );
+    _changeToken++;
     notifyListeners();
     return entry;
   }
@@ -110,6 +121,7 @@ class DiaryProvider extends ChangeNotifier {
     final entry = _deletedEntries.remove(id);
     if (entry == null) return;
     _entries.add(entry);
+    _changeToken++;
     notifyListeners();
   }
 
@@ -131,6 +143,7 @@ class DiaryProvider extends ChangeNotifier {
   Future<void> moveEntry(String entryId, Meal newMeal) async {
     if (_isLocked) return;
     await DatabaseService.instance.updateEntryMeal(entryId, newMeal);
+    _changeToken++;
     await loadDay(_selectedDate);
   }
 
@@ -204,6 +217,7 @@ class DiaryProvider extends ChangeNotifier {
       meal: meal,
     );
     await DatabaseService.instance.addDiaryEntry(newEntry);
+    _changeToken++;
     await loadDay(_selectedDate);
   }
 }
