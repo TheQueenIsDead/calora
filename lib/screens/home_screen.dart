@@ -77,7 +77,7 @@ class HomeScreen extends StatelessWidget {
                         MealSection(
                           meal: meal,
                           entries: diary.entriesForMeal(meal),
-                          onDelete: diary.deleteEntry,
+                          onDelete: (id) => _handleDelete(context, diary, id),
                           onAdd: () => _addFood(context, meal),
                           onMove: (entry, target) =>
                               diary.moveEntry(entry.id, target),
@@ -90,6 +90,22 @@ class HomeScreen extends StatelessWidget {
                 ),
         );
       },
+    );
+  }
+
+  Future<void> _handleDelete(BuildContext context, DiaryProvider diary, String id) async {
+    final entry = await diary.softDeleteEntry(id);
+    if (entry == null || !context.mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Removed ${entry.food.formattedName}'),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () => diary.undoDelete(id),
+        ),
+      ),
     );
   }
 

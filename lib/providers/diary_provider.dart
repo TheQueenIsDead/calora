@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,6 +10,8 @@ import '../services/database_service.dart';
 class DiaryProvider extends ChangeNotifier {
   List<DiaryEntry> _entries = [];
   DateTime _selectedDate = DateTime.now();
+  final Map<String, Timer> _pendingDeletes = {};
+  final Map<String, DiaryEntry> _deletedEntries = {};
   int _currentGoal = 2000;  // most recently set goal — used in settings
   int _dailyGoal = 2000;    // effective goal for _selectedDate — used in diary
   int _waterTargetMl = 2000;
@@ -128,6 +131,38 @@ class DiaryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Removes the entry from the UI immediately and schedules a DB delete after
+  // 5 seconds. Returns the removed entry so the caller can offer an undo action.
+  Future<DiaryEntry?> softDeleteEntry(String id) async {
+    if (_isLocked) return null;
+    final idx = _entries.indexWhere((e) => e.id == id);
+    if (idx < 0) return null;
+    final entry = _entries.removeAt(idx);
+    _deletedEntries[id] = entry;
+    _pendingDeletes[id]?.cancel();
+    _pendingDeletes[id] = Timer(
+      const Duration(seconds: 5),
+      () => _commitDelete(id),
+    );
+    notifyListeners();
+    return entry;
+  }
+
+  void undoDelete(String id) {
+    _pendingDeletes[id]?.cancel();
+    _pendingDeletes.remove(id);
+    final entry = _deletedEntries.remove(id);
+    if (entry == null) return;
+    _entries.add(entry);
+    notifyListeners();
+  }
+
+  Future<void> _commitDelete(String id) async {
+    _deletedEntries.remove(id);
+    _pendingDeletes.remove(id);
+    await DatabaseService.instance.deleteDiaryEntry(id);
+  }
+
   Future<void> moveEntry(String entryId, Meal newMeal) async {
     if (_isLocked) return;
     await DatabaseService.instance.updateEntryMeal(entryId, newMeal);
@@ -190,11 +225,14 @@ class DiaryProvider extends ChangeNotifier {
   Future<void> createRecipeFromMeal(Meal meal, String name) async {
     final mealEntries = entriesForMeal(meal);
     if (mealEntries.isEmpty) return;
-    final recipeId = await DatabaseService.instance.saveRecipe(name, null);
     for (final entry in mealEntries) {
       await DatabaseService.instance.saveFood(entry.food);
-      await DatabaseService.instance.addRecipeItem(recipeId, entry.food.id, entry.grams);
     }
+    final recipeId = await DatabaseService.instance.saveRecipeWithItems(
+      name,
+      null,
+      mealEntries.map((e) => (foodId: e.food.id, grams: e.grams)).toList(),
+    );
     final recipeFood = await DatabaseService.instance.getRecipeAsFood(recipeId);
     if (recipeFood == null) return;
     for (final entry in mealEntries) {
