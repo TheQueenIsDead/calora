@@ -1,11 +1,13 @@
 import 'dart:io';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:uuid/uuid.dart';
 import '../models/food_item.dart';
 import '../models/diary_entry.dart';
+import '../models/weight_entry.dart';
 
 class DatabaseService {
   static DatabaseService? _instance;
@@ -55,7 +57,7 @@ class DatabaseService {
 
   // ── User DB (never wiped, holds diary + recipes + food cache) ─────────────
 
-  static const _kUserVersion = 3;
+  static const _kUserVersion = 4;
 
   Future<Database> _openUserDb() async {
     final dir = await getDatabasesPath();
@@ -70,12 +72,12 @@ class DatabaseService {
           await db.execute(
               'ALTER TABLE recipes ADD COLUMN servings INTEGER NOT NULL DEFAULT 1');
         }
+        if (oldV < 4) await _createWeightLogTable(db);
       },
     );
-    // Run guards after openDatabase returns so they are guaranteed to execute
-    // before the handle is used, regardless of whether onUpgrade fired.
     await _createGoalHistoryTable(db);
     await _ensureRecipesServingsColumn(db);
+    await _createWeightLogTable(db);
     return db;
   }
 
@@ -92,6 +94,16 @@ class DatabaseService {
       CREATE TABLE IF NOT EXISTS goal_history (
         date     TEXT PRIMARY KEY,
         calories INTEGER NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createWeightLogTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS weight_log (
+        id   TEXT PRIMARY KEY,
+        date TEXT UNIQUE NOT NULL,
+        kg   REAL NOT NULL
       )
     ''');
   }
@@ -148,11 +160,11 @@ class DatabaseService {
     await db.execute('CREATE INDEX idx_diary_date    ON diary_entries (date)');
     await db.execute('CREATE INDEX idx_foods_barcode ON foods (barcode)');
     await _createGoalHistoryTable(db);
+    await _createWeightLogTable(db);
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  // Read user_version from bytes 60-63 of SQLite file header (big-endian int32).
   Future<int> _readUserVersion(String path) async {
     try {
       final bytes = await File(path)
@@ -168,73 +180,115 @@ class DatabaseService {
   // ── Food lookup ───────────────────────────────────────────────────────────
 
   Future<void> saveFood(FoodItem food) async {
-    final d = await userDb;
-    await d.insert('foods', food.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    try {
+      final d = await userDb;
+      await d.insert('foods', food.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    } catch (e) {
+      debugPrint('saveFood error: $e');
+      rethrow;
+    }
   }
 
   Future<FoodItem?> getFoodById(String id) async {
-    // Prefer user DB (cached/custom foods); fall back to foods DB.
-    final u = await userDb;
-    final uRows = await u.query('foods', where: 'id = ?', whereArgs: [id]);
-    if (uRows.isNotEmpty) return FoodItem.fromMap(uRows.first);
-
-    final f = await foodsDb;
-    final fRows = await f.query('foods', where: 'id = ?', whereArgs: [id]);
-    return fRows.isEmpty ? null : FoodItem.fromMap(fRows.first);
+    try {
+      final u = await userDb;
+      final uRows = await u.query('foods', where: 'id = ?', whereArgs: [id]);
+      if (uRows.isNotEmpty) return FoodItem.fromMap(uRows.first);
+      final f = await foodsDb;
+      final fRows = await f.query('foods', where: 'id = ?', whereArgs: [id]);
+      return fRows.isEmpty ? null : FoodItem.fromMap(fRows.first);
+    } catch (e) {
+      debugPrint('getFoodById error: $e');
+      return null;
+    }
   }
 
   Future<FoodItem?> getFoodByBarcode(String barcode) async {
-    final u = await userDb;
-    final uRows = await u.query('foods', where: 'barcode = ?', whereArgs: [barcode]);
-    if (uRows.isNotEmpty) return FoodItem.fromMap(uRows.first);
-
-    final f = await foodsDb;
-    final fRows = await f.query('foods', where: 'barcode = ?', whereArgs: [barcode]);
-    return fRows.isEmpty ? null : FoodItem.fromMap(fRows.first);
+    try {
+      final u = await userDb;
+      final uRows = await u.query('foods', where: 'barcode = ?', whereArgs: [barcode]);
+      if (uRows.isNotEmpty) return FoodItem.fromMap(uRows.first);
+      final f = await foodsDb;
+      final fRows = await f.query('foods', where: 'barcode = ?', whereArgs: [barcode]);
+      return fRows.isEmpty ? null : FoodItem.fromMap(fRows.first);
+    } catch (e) {
+      debugPrint('getFoodByBarcode error: $e');
+      return null;
+    }
   }
 
   // ── Search (always against foods DB) ─────────────────────────────────────
 
   Future<List<FoodItem>> searchFoods(String query) async {
-    final d = await foodsDb;
-    final term = query.trim().toLowerCase();
-    final words = term
-        .replaceAll(RegExp(r'[^\w\s]'), ' ')
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((w) => w.isNotEmpty)
-        .toList();
+    try {
+      final d = await foodsDb;
+      final term = query.trim().toLowerCase();
+      final words = term
+          .replaceAll(RegExp(r'[^\w\s]'), ' ')
+          .trim()
+          .split(RegExp(r'\s+'))
+          .where((w) => w.isNotEmpty)
+          .toList();
 
-    if (words.isEmpty) return [];
+      if (words.isEmpty) return [];
 
-    final ftsResults = await _ftsSearch(d, words);
-    if (ftsResults.isNotEmpty) return _rankByRelevance(ftsResults, term, words);
+      final ftsResults = await _ftsSearch(d, words);
+      if (ftsResults.isNotEmpty) return _rankByRelevance(ftsResults, term, words);
 
-    final vocab = await _loadVocabulary(d);
-    final corrected = words.map((w) => _closestWord(w, vocab)).toList();
-    if (corrected.join(' ') != words.join(' ')) {
-      final correctedResults = await _ftsSearch(d, corrected);
-      if (correctedResults.isNotEmpty) return _rankByRelevance(correctedResults, term, words);
+      final vocab = await _loadVocabulary(d);
+      final corrected = words.map((w) => _closestWord(w, vocab)).toList();
+      if (corrected.join(' ') != words.join(' ')) {
+        final correctedResults = await _ftsSearch(d, corrected);
+        if (correctedResults.isNotEmpty) return _rankByRelevance(correctedResults, term, words);
+      }
+
+      final wordClauses = words.map((_) => "LOWER(name) LIKE ?").join(' AND ');
+      final brandClauses = words.map((_) => "LOWER(brand) LIKE ?").join(' AND ');
+      final wordArgs = words.map((w) => '%$w%').toList();
+      final likeRows = await d.rawQuery('''
+        SELECT * FROM foods
+        WHERE ($wordClauses) OR ($brandClauses)
+        LIMIT 60
+      ''', [...wordArgs, ...wordArgs]);
+      return _rankByRelevance(likeRows.map(FoodItem.fromMap).toList(), term, words);
+    } catch (e) {
+      debugPrint('searchFoods error: $e');
+      return [];
     }
-
-    final wordClauses = words.map((_) => "LOWER(name) LIKE ?").join(' AND ');
-    final brandClauses = words.map((_) => "LOWER(brand) LIKE ?").join(' AND ');
-    final wordArgs = words.map((w) => '%$w%').toList();
-    final likeRows = await d.rawQuery('''
-      SELECT * FROM foods
-      WHERE ($wordClauses) OR ($brandClauses)
-      LIMIT 60
-    ''', [...wordArgs, ...wordArgs]);
-    final likeResults = likeRows.map(FoodItem.fromMap).toList();
-    return _rankByRelevance(likeResults, term, words);
   }
 
-  /// Sorts [items] so the closest match to [term]/[words] comes first.
-  /// Scoring (lower = better):
-  ///   0   exact name match
-  ///   1   name starts with full term
-  ///   2   name contains full term as substring
-  ///   3+  all words present but scattered — penalised by sum of word positions + name length
+  /// Returns recent foods from diary, prioritising [previousMeal] on [date].
+  /// Used to populate suggestions when the search query is empty.
+  Future<List<FoodItem>> getRecentFoods({
+    required Meal previousMeal,
+    required DateTime date,
+    int limit = 20,
+  }) async {
+    try {
+      final d = await userDb;
+      final dateStr = date.toIso8601String().substring(0, 10);
+      final cutoff = date.subtract(const Duration(days: 30)).toIso8601String().substring(0, 10);
+
+      // Pull distinct foods from last 30 days; prioritise previous meal on date.
+      final rows = await d.rawQuery('''
+        SELECT f.*,
+          MAX(e.date) AS last_date,
+          MAX(CASE WHEN e.date = ? AND e.meal = ? THEN 1 ELSE 0 END) AS is_prev_meal
+        FROM diary_entries e
+        JOIN foods f ON f.id = e.food_id
+        WHERE e.date BETWEEN ? AND ?
+        GROUP BY f.id
+        ORDER BY is_prev_meal DESC, last_date DESC
+        LIMIT ?
+      ''', [dateStr, previousMeal.name, cutoff, dateStr, limit]);
+
+      return rows.map((r) => FoodItem.fromMap(r)).toList();
+    } catch (e) {
+      debugPrint('getRecentFoods error: $e');
+      return [];
+    }
+  }
+
   List<FoodItem> _rankByRelevance(
       List<FoodItem> items, String term, List<String> words) {
     int score(FoodItem item) {
@@ -322,7 +376,8 @@ class DatabaseService {
         {'date': dateStr, 'calories': calories},
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('saveGoal error: $e');
       await _createGoalHistoryTable(db);
       await db.insert(
         'goal_history',
@@ -332,7 +387,6 @@ class DatabaseService {
     }
   }
 
-  /// Returns the effective calorie goal on [date], or null if no history exists.
   Future<int?> getEffectiveGoal(DateTime date) async {
     final dateStr = date.toIso8601String().substring(0, 10);
     final db = await userDb;
@@ -342,14 +396,13 @@ class DatabaseService {
         WHERE date <= ? ORDER BY date DESC LIMIT 1
       ''', [dateStr]);
       return rows.isEmpty ? null : rows.first['calories'] as int;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('getEffectiveGoal error: $e');
       await _createGoalHistoryTable(db);
       return null;
     }
   }
 
-  /// Returns a map of date-string → effective goal for every day in [from]..[to].
-  /// Falls back to [fallback] for days before any goal was recorded.
   Future<Map<String, int>> getDailyGoals(
       DateTime from, DateTime to, int fallback) async {
     final toStr = to.toIso8601String().substring(0, 10);
@@ -360,7 +413,8 @@ class DatabaseService {
         SELECT date, calories FROM goal_history
         WHERE date <= ? ORDER BY date ASC
       ''', [toStr]);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('getDailyGoals error: $e');
       await _createGoalHistoryTable(db);
       changes = [];
     }
@@ -383,220 +437,398 @@ class DatabaseService {
     return result;
   }
 
-  /// Returns all recipes (or those matching [query]) as virtual FoodItems with
-  /// per-100g nutrition derived from their ingredients. Pass an empty string to
-  /// return all recipes (used to populate the list before the user types).
-  Future<List<FoodItem>> getRecipesAsFood([String query = '']) async {
-    final d = await userDb;
-    final term = query.trim().isEmpty ? '%' : '%${query.trim().toLowerCase()}%';
-    final rows = await d.rawQuery('''
-      SELECT r.id, r.name, r.servings,
-        COALESCE(SUM(ri.grams), 0)                                AS total_grams,
-        COALESCE(SUM(ri.grams * f.calories_per_100g / 100.0), 0) AS cal,
-        COALESCE(SUM(ri.grams * f.protein_per_100g  / 100.0), 0) AS protein,
-        COALESCE(SUM(ri.grams * f.fat_per_100g      / 100.0), 0) AS fat,
-        COALESCE(SUM(ri.grams * f.carbs_per_100g    / 100.0), 0) AS carbs
-      FROM recipes r
-      LEFT JOIN recipe_items ri ON ri.recipe_id = r.id
-      LEFT JOIN foods         f  ON f.id = ri.food_id
-      WHERE LOWER(r.name) LIKE ?
-      GROUP BY r.id
-      ORDER BY r.name
-    ''', [term]);
+  // ── Weight log ────────────────────────────────────────────────────────────
 
-    return rows.map((row) {
+  Future<void> saveWeight(DateTime date, double kg) async {
+    try {
+      final dateStr = date.toIso8601String().substring(0, 10);
+      final db = await userDb;
+      await db.insert(
+        'weight_log',
+        {'id': const Uuid().v4(), 'date': dateStr, 'kg': kg},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (e) {
+      debugPrint('saveWeight error: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<WeightEntry>> getWeightHistory({int days = 90}) async {
+    try {
+      final db = await userDb;
+      final cutoff = DateTime.now().subtract(Duration(days: days))
+          .toIso8601String().substring(0, 10);
+      final rows = await db.rawQuery(
+        'SELECT * FROM weight_log WHERE date >= ? ORDER BY date ASC',
+        [cutoff],
+      );
+      return rows.map(WeightEntry.fromMap).toList();
+    } catch (e) {
+      debugPrint('getWeightHistory error: $e');
+      return [];
+    }
+  }
+
+  Future<WeightEntry?> getLatestWeight() async {
+    try {
+      final db = await userDb;
+      final rows = await db.rawQuery(
+          'SELECT * FROM weight_log ORDER BY date DESC LIMIT 1');
+      return rows.isEmpty ? null : WeightEntry.fromMap(rows.first);
+    } catch (e) {
+      debugPrint('getLatestWeight error: $e');
+      return null;
+    }
+  }
+
+  Future<void> deleteWeight(String id) async {
+    try {
+      await (await userDb).delete('weight_log', where: 'id = ?', whereArgs: [id]);
+    } catch (e) {
+      debugPrint('deleteWeight error: $e');
+      rethrow;
+    }
+  }
+
+  // ── Recipes (as virtual FoodItems) ────────────────────────────────────────
+
+  Future<List<FoodItem>> getRecipesAsFood([String query = '']) async {
+    try {
+      final d = await userDb;
+      final term = query.trim().isEmpty ? '%' : '%${query.trim().toLowerCase()}%';
+      final rows = await d.rawQuery('''
+        SELECT r.id, r.name, r.servings,
+          COALESCE(SUM(ri.grams), 0)                                AS total_grams,
+          COALESCE(SUM(ri.grams * f.calories_per_100g / 100.0), 0) AS cal,
+          COALESCE(SUM(ri.grams * f.protein_per_100g  / 100.0), 0) AS protein,
+          COALESCE(SUM(ri.grams * f.fat_per_100g      / 100.0), 0) AS fat,
+          COALESCE(SUM(ri.grams * f.carbs_per_100g    / 100.0), 0) AS carbs
+        FROM recipes r
+        LEFT JOIN recipe_items ri ON ri.recipe_id = r.id
+        LEFT JOIN foods         f  ON f.id = ri.food_id
+        WHERE LOWER(r.name) LIKE ?
+        GROUP BY r.id
+        ORDER BY r.name
+      ''', [term]);
+
+      return rows.map((row) {
+        final totalGrams = (row['total_grams'] as num).toDouble();
+        final servings = (row['servings'] as num?)?.toInt() ?? 1;
+        final factor = totalGrams > 0 ? 100.0 / totalGrams : 0.0;
+        final servingGrams = totalGrams > 0 ? totalGrams / servings : null;
+        return FoodItem(
+          id: 'recipe_${row['id']}',
+          name: row['name'] as String,
+          caloriesPer100g: (row['cal']     as num).toDouble() * factor,
+          proteinPer100g:  (row['protein'] as num).toDouble() * factor,
+          fatPer100g:      (row['fat']     as num).toDouble() * factor,
+          carbsPer100g:    (row['carbs']   as num).toDouble() * factor,
+          servingGrams:    servingGrams,
+          source: 'custom',
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('getRecipesAsFood error: $e');
+      return [];
+    }
+  }
+
+  Future<FoodItem?> getRecipeAsFood(String recipeId) async {
+    try {
+      final d = await userDb;
+      final rows = await d.rawQuery('''
+        SELECT r.id, r.name, r.servings,
+          COALESCE(SUM(ri.grams), 0)                                AS total_grams,
+          COALESCE(SUM(ri.grams * f.calories_per_100g / 100.0), 0) AS cal,
+          COALESCE(SUM(ri.grams * f.protein_per_100g  / 100.0), 0) AS protein,
+          COALESCE(SUM(ri.grams * f.fat_per_100g      / 100.0), 0) AS fat,
+          COALESCE(SUM(ri.grams * f.carbs_per_100g    / 100.0), 0) AS carbs
+        FROM recipes r
+        LEFT JOIN recipe_items ri ON ri.recipe_id = r.id
+        LEFT JOIN foods         f  ON f.id = ri.food_id
+        WHERE r.id = ?
+        GROUP BY r.id
+      ''', [recipeId]);
+      if (rows.isEmpty) return null;
+      final row = rows.first;
       final totalGrams = (row['total_grams'] as num).toDouble();
       final servings = (row['servings'] as num?)?.toInt() ?? 1;
       final factor = totalGrams > 0 ? 100.0 / totalGrams : 0.0;
-      final servingGrams = totalGrams > 0 ? totalGrams / servings : null;
       return FoodItem(
-        id: 'recipe_${row['id']}',
+        id: 'recipe_$recipeId',
         name: row['name'] as String,
         caloriesPer100g: (row['cal']     as num).toDouble() * factor,
         proteinPer100g:  (row['protein'] as num).toDouble() * factor,
         fatPer100g:      (row['fat']     as num).toDouble() * factor,
         carbsPer100g:    (row['carbs']   as num).toDouble() * factor,
-        servingGrams:    servingGrams,
+        servingGrams:    totalGrams > 0 ? totalGrams / servings : null,
         source: 'custom',
       );
-    }).toList();
-  }
-
-  Future<FoodItem?> getRecipeAsFood(String recipeId) async {
-    final d = await userDb;
-    final rows = await d.rawQuery('''
-      SELECT r.id, r.name, r.servings,
-        COALESCE(SUM(ri.grams), 0)                                AS total_grams,
-        COALESCE(SUM(ri.grams * f.calories_per_100g / 100.0), 0) AS cal,
-        COALESCE(SUM(ri.grams * f.protein_per_100g  / 100.0), 0) AS protein,
-        COALESCE(SUM(ri.grams * f.fat_per_100g      / 100.0), 0) AS fat,
-        COALESCE(SUM(ri.grams * f.carbs_per_100g    / 100.0), 0) AS carbs
-      FROM recipes r
-      LEFT JOIN recipe_items ri ON ri.recipe_id = r.id
-      LEFT JOIN foods         f  ON f.id = ri.food_id
-      WHERE r.id = ?
-      GROUP BY r.id
-    ''', [recipeId]);
-    if (rows.isEmpty) return null;
-    final row = rows.first;
-    final totalGrams = (row['total_grams'] as num).toDouble();
-    final servings = (row['servings'] as num?)?.toInt() ?? 1;
-    final factor = totalGrams > 0 ? 100.0 / totalGrams : 0.0;
-    return FoodItem(
-      id: 'recipe_$recipeId',
-      name: row['name'] as String,
-      caloriesPer100g: (row['cal']     as num).toDouble() * factor,
-      proteinPer100g:  (row['protein'] as num).toDouble() * factor,
-      fatPer100g:      (row['fat']     as num).toDouble() * factor,
-      carbsPer100g:    (row['carbs']   as num).toDouble() * factor,
-      servingGrams:    totalGrams > 0 ? totalGrams / servings : null,
-      source: 'custom',
-    );
+    } catch (e) {
+      debugPrint('getRecipeAsFood error: $e');
+      return null;
+    }
   }
 
   // ── Diary ─────────────────────────────────────────────────────────────────
 
   Future<void> addDiaryEntry(DiaryEntry entry) async {
-    final d = await userDb;
-    await saveFood(entry.food); // snapshot food into user DB
-    await d.insert('diary_entries', entry.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    try {
+      final d = await userDb;
+      await saveFood(entry.food);
+      await d.insert('diary_entries', entry.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    } catch (e) {
+      debugPrint('addDiaryEntry error: $e');
+      rethrow;
+    }
   }
 
   Future<void> deleteDiaryEntry(String id) async {
-    final d = await userDb;
-    await d.delete('diary_entries', where: 'id = ?', whereArgs: [id]);
+    try {
+      final d = await userDb;
+      await d.delete('diary_entries', where: 'id = ?', whereArgs: [id]);
+    } catch (e) {
+      debugPrint('deleteDiaryEntry error: $e');
+      rethrow;
+    }
   }
 
   Future<void> updateEntryMeal(String id, Meal newMeal) async {
-    await (await userDb).update(
-      'diary_entries',
-      {'meal': newMeal.name},
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    try {
+      await (await userDb).update(
+        'diary_entries',
+        {'meal': newMeal.name},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    } catch (e) {
+      debugPrint('updateEntryMeal error: $e');
+      rethrow;
+    }
   }
 
   Future<Map<String, Map<String, double>>> getDailyMacros(
       DateTime from, DateTime to) async {
-    final d = await userDb;
-    final rows = await d.rawQuery('''
-      SELECT e.date,
-        SUM(e.grams * f.protein_per_100g / 100.0) AS protein,
-        SUM(e.grams * f.fat_per_100g / 100.0)     AS fat,
-        SUM(e.grams * f.carbs_per_100g / 100.0)   AS carbs
-      FROM diary_entries e
-      JOIN foods f ON f.id = e.food_id
-      WHERE e.date BETWEEN ? AND ?
-      GROUP BY e.date
-      ORDER BY e.date
-    ''', [
-      from.toIso8601String().substring(0, 10),
-      to.toIso8601String().substring(0, 10),
-    ]);
-    return {
-      for (final r in rows)
-        r['date'] as String: {
-          'protein': (r['protein'] as num?)?.toDouble() ?? 0,
-          'fat': (r['fat'] as num?)?.toDouble() ?? 0,
-          'carbs': (r['carbs'] as num?)?.toDouble() ?? 0,
-        }
-    };
+    try {
+      final d = await userDb;
+      final rows = await d.rawQuery('''
+        SELECT e.date,
+          SUM(e.grams * f.protein_per_100g / 100.0) AS protein,
+          SUM(e.grams * f.fat_per_100g / 100.0)     AS fat,
+          SUM(e.grams * f.carbs_per_100g / 100.0)   AS carbs
+        FROM diary_entries e
+        JOIN foods f ON f.id = e.food_id
+        WHERE e.date BETWEEN ? AND ?
+        GROUP BY e.date
+        ORDER BY e.date
+      ''', [
+        from.toIso8601String().substring(0, 10),
+        to.toIso8601String().substring(0, 10),
+      ]);
+      return {
+        for (final r in rows)
+          r['date'] as String: {
+            'protein': (r['protein'] as num?)?.toDouble() ?? 0,
+            'fat': (r['fat'] as num?)?.toDouble() ?? 0,
+            'carbs': (r['carbs'] as num?)?.toDouble() ?? 0,
+          }
+      };
+    } catch (e) {
+      debugPrint('getDailyMacros error: $e');
+      return {};
+    }
   }
 
   Future<Map<String, double>> getDailyCalories(DateTime from, DateTime to) async {
-    final d = await userDb;
-    final rows = await d.rawQuery('''
-      SELECT e.date, SUM(e.grams * f.calories_per_100g / 100.0) AS calories
-      FROM diary_entries e
-      JOIN foods f ON f.id = e.food_id
-      WHERE e.date BETWEEN ? AND ?
-      GROUP BY e.date
-      ORDER BY e.date
-    ''', [
-      from.toIso8601String().substring(0, 10),
-      to.toIso8601String().substring(0, 10),
-    ]);
-    return {for (final r in rows) r['date'] as String: (r['calories'] as num).toDouble()};
+    try {
+      final d = await userDb;
+      final rows = await d.rawQuery('''
+        SELECT e.date, SUM(e.grams * f.calories_per_100g / 100.0) AS calories
+        FROM diary_entries e
+        JOIN foods f ON f.id = e.food_id
+        WHERE e.date BETWEEN ? AND ?
+        GROUP BY e.date
+        ORDER BY e.date
+      ''', [
+        from.toIso8601String().substring(0, 10),
+        to.toIso8601String().substring(0, 10),
+      ]);
+      return {for (final r in rows) r['date'] as String: (r['calories'] as num).toDouble()};
+    } catch (e) {
+      debugPrint('getDailyCalories error: $e');
+      return {};
+    }
   }
 
   Future<List<DiaryEntry>> getEntriesForDate(DateTime date) async {
-    final d = await userDb;
-    final dateStr = date.toIso8601String().substring(0, 10);
-    final rows = await d.query('diary_entries', where: 'date = ?', whereArgs: [dateStr]);
-    final entries = <DiaryEntry>[];
-    for (final row in rows) {
-      final food = await getFoodById(row['food_id'] as String);
-      if (food != null) entries.add(DiaryEntry.fromMap(row, food));
+    try {
+      final d = await userDb;
+      final dateStr = date.toIso8601String().substring(0, 10);
+      final rows = await d.query('diary_entries', where: 'date = ?', whereArgs: [dateStr]);
+      final entries = <DiaryEntry>[];
+      for (final row in rows) {
+        final food = await getFoodById(row['food_id'] as String);
+        if (food != null) entries.add(DiaryEntry.fromMap(row, food));
+      }
+      return entries;
+    } catch (e) {
+      debugPrint('getEntriesForDate error: $e');
+      return [];
     }
-    return entries;
   }
 
   // ── Recipes ───────────────────────────────────────────────────────────────
 
   Future<List<Map<String, dynamic>>> getRecipes() async {
-    return (await userDb).rawQuery('''
-      SELECT r.id, r.name, r.description, r.servings,
-        COALESCE(SUM(ri.grams * f.calories_per_100g / 100.0), 0) AS total_kcal
-      FROM recipes r
-      LEFT JOIN recipe_items ri ON ri.recipe_id = r.id
-      LEFT JOIN foods         f  ON f.id = ri.food_id
-      GROUP BY r.id
-      ORDER BY r.name
-    ''');
+    try {
+      return (await userDb).rawQuery('''
+        SELECT r.id, r.name, r.description, r.servings,
+          COALESCE(SUM(ri.grams * f.calories_per_100g / 100.0), 0) AS total_kcal
+        FROM recipes r
+        LEFT JOIN recipe_items ri ON ri.recipe_id = r.id
+        LEFT JOIN foods         f  ON f.id = ri.food_id
+        GROUP BY r.id
+        ORDER BY r.name
+      ''');
+    } catch (e) {
+      debugPrint('getRecipes error: $e');
+      return [];
+    }
   }
 
   Future<void> updateRecipeServings(String id, int servings) async {
-    await (await userDb).update('recipes', {'servings': servings},
-        where: 'id = ?', whereArgs: [id]);
+    try {
+      await (await userDb).update('recipes', {'servings': servings},
+          where: 'id = ?', whereArgs: [id]);
+    } catch (e) {
+      debugPrint('updateRecipeServings error: $e');
+      rethrow;
+    }
   }
 
   Future<String> saveRecipe(String name, String? description) async {
-    final id = const Uuid().v4();
-    await (await userDb).insert('recipes', {'id': id, 'name': name, 'description': description});
-    return id;
+    try {
+      final id = const Uuid().v4();
+      await (await userDb).insert('recipes', {
+        'id': id,
+        'name': name,
+        'description': description,
+        'servings': 1,
+      });
+      return id;
+    } catch (e) {
+      debugPrint('saveRecipe error: $e');
+      rethrow;
+    }
+  }
+
+  /// Creates a recipe and all its items atomically in a single transaction.
+  Future<String> saveRecipeWithItems(
+    String name,
+    String? description,
+    List<({String foodId, double grams})> items,
+  ) async {
+    try {
+      final id = const Uuid().v4();
+      final db = await userDb;
+      await db.transaction((txn) async {
+        await txn.insert('recipes', {
+          'id': id,
+          'name': name,
+          'description': description,
+          'servings': 1,
+        });
+        for (final item in items) {
+          await txn.insert('recipe_items', {
+            'id': const Uuid().v4(),
+            'recipe_id': id,
+            'food_id': item.foodId,
+            'grams': item.grams,
+          });
+        }
+      });
+      return id;
+    } catch (e) {
+      debugPrint('saveRecipeWithItems error: $e');
+      rethrow;
+    }
   }
 
   Future<void> renameRecipe(String id, String name) async {
-    await (await userDb).update('recipes', {'name': name},
-        where: 'id = ?', whereArgs: [id]);
+    try {
+      await (await userDb).update('recipes', {'name': name},
+          where: 'id = ?', whereArgs: [id]);
+    } catch (e) {
+      debugPrint('renameRecipe error: $e');
+      rethrow;
+    }
   }
 
   Future<void> deleteRecipe(String id) async {
-    final d = await userDb;
-    await d.delete('recipe_items', where: 'recipe_id = ?', whereArgs: [id]);
-    await d.delete('recipes', where: 'id = ?', whereArgs: [id]);
+    try {
+      final d = await userDb;
+      await d.transaction((txn) async {
+        await txn.delete('recipe_items', where: 'recipe_id = ?', whereArgs: [id]);
+        await txn.delete('recipes', where: 'id = ?', whereArgs: [id]);
+      });
+    } catch (e) {
+      debugPrint('deleteRecipe error: $e');
+      rethrow;
+    }
   }
 
   Future<void> addRecipeItem(String recipeId, String foodId, double grams) async {
-    await (await userDb).insert('recipe_items', {
-      'id': const Uuid().v4(),
-      'recipe_id': recipeId,
-      'food_id': foodId,
-      'grams': grams,
-    });
+    try {
+      await (await userDb).insert('recipe_items', {
+        'id': const Uuid().v4(),
+        'recipe_id': recipeId,
+        'food_id': foodId,
+        'grams': grams,
+      });
+    } catch (e) {
+      debugPrint('addRecipeItem error: $e');
+      rethrow;
+    }
   }
 
   Future<void> updateRecipeItemGrams(String id, double grams) async {
-    await (await userDb).update(
-      'recipe_items',
-      {'grams': grams},
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    try {
+      await (await userDb).update(
+        'recipe_items',
+        {'grams': grams},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    } catch (e) {
+      debugPrint('updateRecipeItemGrams error: $e');
+      rethrow;
+    }
   }
 
   Future<void> deleteRecipeItem(String id) async {
-    await (await userDb).delete('recipe_items', where: 'id = ?', whereArgs: [id]);
+    try {
+      await (await userDb).delete('recipe_items', where: 'id = ?', whereArgs: [id]);
+    } catch (e) {
+      debugPrint('deleteRecipeItem error: $e');
+      rethrow;
+    }
   }
 
   Future<List<Map<String, dynamic>>> getRecipeItems(String recipeId) async {
-    return (await userDb).rawQuery('''
-      SELECT ri.id, ri.food_id, ri.grams, f.name, f.calories_per_100g,
-             f.protein_per_100g, f.fat_per_100g, f.carbs_per_100g, f.source
-      FROM recipe_items ri
-      JOIN foods f ON f.id = ri.food_id
-      WHERE ri.recipe_id = ?
-      ORDER BY f.name
-    ''', [recipeId]);
+    try {
+      return (await userDb).rawQuery('''
+        SELECT ri.id, ri.food_id, ri.grams, f.name, f.calories_per_100g,
+               f.protein_per_100g, f.fat_per_100g, f.carbs_per_100g, f.source
+        FROM recipe_items ri
+        JOIN foods f ON f.id = ri.food_id
+        WHERE ri.recipe_id = ?
+        ORDER BY f.name
+      ''', [recipeId]);
+    } catch (e) {
+      debugPrint('getRecipeItems error: $e');
+      return [];
+    }
   }
 }
