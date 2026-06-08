@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import '../models/diary_entry.dart';
 import '../models/food_item.dart';
 
@@ -8,6 +9,7 @@ class MealSection extends StatelessWidget {
   final Future<void> Function(String) onDelete;
   final VoidCallback onAdd;
   final Future<void> Function(DiaryEntry entry, Meal target) onMove;
+  final Future<void> Function()? onSaveAsRecipe;
 
   const MealSection({
     super.key,
@@ -16,6 +18,7 @@ class MealSection extends StatelessWidget {
     required this.onDelete,
     required this.onAdd,
     required this.onMove,
+    this.onSaveAsRecipe,
   });
 
   double get _mealCalories => entries.fold(0, (sum, e) => sum + e.calories);
@@ -54,13 +57,27 @@ class MealSection extends StatelessWidget {
                           ?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const Spacer(),
-                    if (entries.isNotEmpty)
+                    if (entries.isNotEmpty) ...[
                       Text(
                         '${_mealCalories.toStringAsFixed(0)} kcal',
                         style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w600),
                       ),
+                      if (onSaveAsRecipe != null) ...[
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: onSaveAsRecipe,
+                          borderRadius: BorderRadius.circular(20),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(Icons.bookmark_add_outlined,
+                                size: 20,
+                                color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ),
+                      ],
+                    ],
                     const SizedBox(width: 8),
                     InkWell(
                       onTap: onAdd,
@@ -155,17 +172,21 @@ class _EntryTile extends StatelessWidget {
         opacity: 0.35,
         child: _tileContent(context),
       ),
-      child: Dismissible(
+      child: Slidable(
         key: Key(entry.id),
-        direction: DismissDirection.endToStart,
-        background: Container(
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 16),
-          color: theme.colorScheme.errorContainer,
-          child: Icon(Icons.delete_outline,
-              color: theme.colorScheme.onErrorContainer),
+        endActionPane: ActionPane(
+          motion: const DrawerMotion(),
+          extentRatio: 0.22,
+          children: [
+            SlidableAction(
+              onPressed: (_) => onDelete(entry.id),
+              backgroundColor: theme.colorScheme.errorContainer,
+              foregroundColor: theme.colorScheme.onErrorContainer,
+              icon: Icons.delete_outline,
+              label: 'Delete',
+            ),
+          ],
         ),
-        onDismissed: (_) => onDelete(entry.id),
         child: _tileContent(context),
       ),
     );

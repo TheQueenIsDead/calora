@@ -95,9 +95,12 @@ class _CalorieChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final today = DateTime.now();
+    final goalColor = theme.colorScheme.tertiary;
 
     final bars = <BarChartGroupData>[];
+    final goalSpots = <FlSpot>[];
     double maxY = 0;
+    double? prevGoal;
 
     for (var i = 0; i < days; i++) {
       final date = today.subtract(Duration(days: days - 1 - i));
@@ -123,6 +126,13 @@ class _CalorieChart extends StatelessWidget {
           ),
         ],
       ));
+
+      // Step function: insert a point at the old goal just before a change
+      if (prevGoal != null && prevGoal != dayGoal) {
+        goalSpots.add(FlSpot(i - 0.001, prevGoal));
+      }
+      goalSpots.add(FlSpot(i.toDouble(), dayGoal));
+      prevGoal = dayGoal;
     }
 
     maxY = maxY * 1.2;
@@ -135,46 +145,113 @@ class _CalorieChart extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.only(left: 8, bottom: 16),
-              child: Text('Calories — last $days days',
-                  style: theme.textTheme.titleMedium),
+              padding: const EdgeInsets.only(left: 8, bottom: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('Calories — last $days days',
+                        style: theme.textTheme.titleMedium),
+                  ),
+                  Container(
+                    width: 16,
+                    height: 2,
+                    color: goalColor,
+                  ),
+                  const SizedBox(width: 4),
+                  Text('Goal',
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                ],
+              ),
             ),
             SizedBox(
               height: 200,
-              child: BarChart(
-                BarChartData(
-                  maxY: maxY,
-                  barGroups: bars,
-                  gridData: FlGridData(
-                    drawVerticalLine: false,
-                    horizontalInterval: maxY / 4,
-                    getDrawingHorizontalLine: (_) => FlLine(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                      strokeWidth: 1,
-                      dashArray: [4, 4],
+              child: Stack(
+                children: [
+                  BarChart(
+                    BarChartData(
+                      maxY: maxY,
+                      barGroups: bars,
+                      gridData: FlGridData(
+                        drawVerticalLine: false,
+                        horizontalInterval: maxY / 4,
+                        getDrawingHorizontalLine: (_) => FlLine(
+                          color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                          strokeWidth: 1,
+                          dashArray: [4, 4],
+                        ),
+                      ),
+                      borderData: FlBorderData(show: false),
+                      titlesData: _titlesData(theme, today),
+                      barTouchData: BarTouchData(
+                        touchTooltipData: BarTouchTooltipData(
+                          getTooltipItem: (group, _, rod, _) {
+                            final date = today
+                                .subtract(Duration(days: days - 1 - group.x));
+                            final key =
+                                date.toIso8601String().substring(0, 10);
+                            final goalVal = dailyGoals[key] ?? 2000;
+                            return BarTooltipItem(
+                              '${DateFormat('d MMM').format(date)}\n'
+                              '${rod.toY.toStringAsFixed(0)} kcal  '
+                              '(goal $goalVal)',
+                              theme.textTheme.labelSmall!.copyWith(
+                                  color: theme.colorScheme.onSurface),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    duration: Duration.zero,
+                  ),
+                  // Goal line overlay — IgnorePointer so bar touches pass through
+                  IgnorePointer(
+                    child: LineChart(
+                      LineChartData(
+                        // minX = -1, maxX = days aligns with BarChartAlignment.spaceEvenly
+                        minX: -1,
+                        maxX: days.toDouble(),
+                        minY: 0,
+                        maxY: maxY,
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: goalSpots,
+                            isCurved: false,
+                            color: goalColor,
+                            barWidth: 2,
+                            dotData: const FlDotData(show: false),
+                            dashArray: [6, 4],
+                          ),
+                        ],
+                        titlesData: FlTitlesData(
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 44,
+                              getTitlesWidget: (_, _) =>
+                                  const SizedBox.shrink(),
+                            ),
+                          ),
+                          rightTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false)),
+                          topTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false)),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 22,
+                              getTitlesWidget: (_, _) =>
+                                  const SizedBox.shrink(),
+                            ),
+                          ),
+                        ),
+                        gridData: const FlGridData(show: false),
+                        borderData: FlBorderData(show: false),
+                      ),
+                      duration: Duration.zero,
                     ),
                   ),
-                  borderData: FlBorderData(show: false),
-                  titlesData: _titlesData(theme, today),
-                  barTouchData: BarTouchData(
-                    touchTooltipData: BarTouchTooltipData(
-                      getTooltipItem: (group, _, rod, _) {
-                        final date =
-                            today.subtract(Duration(days: days - 1 - group.x));
-                        final key =
-                            date.toIso8601String().substring(0, 10);
-                        final goalVal = dailyGoals[key] ?? 2000;
-                        return BarTooltipItem(
-                          '${DateFormat('d MMM').format(date)}\n'
-                          '${rod.toY.toStringAsFixed(0)} kcal  '
-                          '(goal $goalVal)',
-                          theme.textTheme.labelSmall!
-                              .copyWith(color: theme.colorScheme.onSurface),
-                        );
-                      },
-                    ),
-                  ),
-                ),
+                ],
               ),
             ),
           ],
@@ -355,6 +432,7 @@ class _MacroChart extends StatelessWidget {
                     ),
                   ),
                 ),
+                duration: Duration.zero,
               ),
             ),
           ],

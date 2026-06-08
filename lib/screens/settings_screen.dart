@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/diary_provider.dart';
 import 'bmr_calculator_screen.dart';
 import 'recipes_screen.dart';
+import 'water_vessels_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -31,14 +32,24 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.water_drop_outlined),
             title: const Text('Daily water target'),
-            trailing: Text('${diary.waterTarget} cups',
+            trailing: Text('${diary.waterTargetMl} ml',
                 style: Theme.of(context).textTheme.bodyMedium),
             onTap: () => _editInt(
               context,
               title: 'Daily water target',
-              suffix: 'cups',
-              current: diary.waterTarget,
-              onSave: diary.setWaterTarget,
+              suffix: 'ml',
+              current: diary.waterTargetMl,
+              onSave: diary.setWaterTargetMl,
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.local_drink_outlined),
+            title: const Text('Water vessels'),
+            subtitle: Text('${diary.vessels.length} vessel${diary.vessels.length == 1 ? '' : 's'} configured'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const WaterVesselsScreen()),
             ),
           ),
           ListTile(

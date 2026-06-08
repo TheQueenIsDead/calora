@@ -71,14 +71,18 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _ageCtrl.text = (prefs.getInt('bmr_age') ?? '').toString().replaceAll('0', '');
-      _heightCtrl.text = (prefs.getInt('bmr_height') ?? '').toString().replaceAll('0', '');
-      _weightCtrl.text = (prefs.getDouble('bmr_weight') ?? '').toString().replaceAll('0.0', '');
+      final age = prefs.getInt('bmr_age');
+      final height = prefs.getInt('bmr_height');
+      final weight = prefs.getDouble('bmr_weight');
+      if (age != null) _ageCtrl.text = age.toString();
+      if (height != null) _heightCtrl.text = height.toString();
+      if (weight != null) _weightCtrl.text = weight % 1 == 0 ? weight.toInt().toString() : weight.toString();
       final sexIdx = prefs.getInt('bmr_sex') ?? 0;
       _sex = _Sex.values[sexIdx.clamp(0, _Sex.values.length - 1)];
       final actIdx = prefs.getInt('bmr_activity') ?? 2;
       _activity = _ActivityLevel.values[actIdx.clamp(0, _ActivityLevel.values.length - 1)];
     });
+    await _savePrefs();
   }
 
   Future<void> _savePrefs() async {
@@ -91,6 +95,18 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
     if (weight != null) await prefs.setDouble('bmr_weight', weight);
     await prefs.setInt('bmr_sex', _sex.index);
     await prefs.setInt('bmr_activity', _activity.index);
+    final r = _calculate();
+    if (r.bmr != null && r.tdee != null) {
+      final roundedBmr = r.bmr!.round();
+      final roundedTdee = r.tdee!.round();
+      await prefs.setInt('bmr_value', roundedBmr);
+      await prefs.setInt('tdee_value', roundedTdee);
+      if (mounted) {
+        final diary = context.read<DiaryProvider>();
+        diary.setBmr(roundedBmr);
+        diary.setTdee(roundedTdee);
+      }
+    }
   }
 
   ({double? bmi, double? bmr, double? tdee}) _calculate() {
@@ -230,19 +246,26 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
                 children: [
                   Text('Activity level', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
-                  ..._ActivityLevel.values.map((level) => RadioListTile<_ActivityLevel>(
-                        value: level,
-                        groupValue: _activity,
-                        title: Text(level.label),
-                        subtitle: Text(level.description,
-                            style: theme.textTheme.bodySmall),
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        onChanged: (v) {
-                          setState(() => _activity = v!);
-                          _savePrefs();
-                        },
-                      )),
+                  RadioGroup<_ActivityLevel>(
+                    groupValue: _activity,
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setState(() => _activity = v);
+                      _savePrefs();
+                    },
+                    child: Column(
+                      children: _ActivityLevel.values.map((level) =>
+                        RadioListTile<_ActivityLevel>(
+                          value: level,
+                          title: Text(level.label),
+                          subtitle: Text(level.description,
+                              style: theme.textTheme.bodySmall),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                      ).toList(),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -316,13 +339,54 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
                           color: theme.colorScheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: () => _setGoal(context, result.tdee!.round()),
-                      icon: const Icon(Icons.flag_outlined),
-                      label: Text(
-                          'Set ${result.tdee!.toStringAsFixed(0)} kcal as my goal'),
-                      style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(44)),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.tonal(
+                            onPressed: () => _setGoal(
+                              context,
+                              result.tdee!.round() - 500,
+                              'Cut',
+                            ),
+                            style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(52)),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('Cut',
+                                    style: TextStyle(fontWeight: FontWeight.w600)),
+                                Text(
+                                  '${(result.tdee! - 500).toStringAsFixed(0)} kcal',
+                                  style: Theme.of(context).textTheme.labelSmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () => _setGoal(
+                              context,
+                              result.tdee!.round(),
+                              'Maintain',
+                            ),
+                            style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(52)),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('Maintain',
+                                    style: TextStyle(fontWeight: FontWeight.w600)),
+                                Text(
+                                  '${result.tdee!.toStringAsFixed(0)} kcal',
+                                  style: Theme.of(context).textTheme.labelSmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -357,41 +421,18 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
     );
   }
 
-  Future<void> _setGoal(BuildContext context, int tdee) async {
-    // Capture refs before any async gap to avoid BuildContext-across-await issues.
+  Future<void> _setGoal(BuildContext context, int kcal, String label) async {
     final provider = context.read<DiaryProvider>();
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Set calorie goal'),
-        content: Text(
-            'Set your daily goal to $tdee kcal (your maintenance calories)?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Set goal')),
-        ],
-      ),
-    );
-    if (confirmed == true && mounted) {
-      try {
-        await provider.setDailyGoal(tdee);
-      } catch (_) {
-        // notifyListeners() already fired before the DB write, so the
-        // in-memory goal is updated regardless. Don't block navigation.
-      }
-      if (mounted) {
-        navigator.pop();
-        messenger.showSnackBar(
-          SnackBar(content: Text('Daily goal set to $tdee kcal')),
-        );
-      }
+    try {
+      await provider.setDailyGoal(kcal);
+    } catch (_) {}
+    if (mounted) {
+      navigator.pop();
+      messenger.showSnackBar(
+        SnackBar(content: Text('$label goal set to $kcal kcal')),
+      );
     }
   }
 }
