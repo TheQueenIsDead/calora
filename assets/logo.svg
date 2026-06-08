@@ -6,11 +6,11 @@
     </linearGradient>
   </defs>
   <circle cx="256" cy="256" r="256" fill="url(#g)"/>
-  <!-- Lucide "apple" icon paths, scaled 14x and centered -->
-  <g transform="translate(84, 72) scale(14.5)">
-    <path fill="white"
-      d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"/>
-    <path fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"
-      d="M10 2c1 .5 2 2 2 5"/>
+  <g transform="translate(50, 20) scale(17)" fill="none" stroke="white" stroke-width="2"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="m12 14 4-4"/>
+    <path d="M3.34 19a10 10 0 1 1 17.32 0"/>
   </g>
 </svg>
+
+
