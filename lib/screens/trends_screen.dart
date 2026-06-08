@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/diary_provider.dart';
 import '../services/database_service.dart';
+import 'weight_screen.dart';
 
 class TrendsScreen extends StatefulWidget {
   const TrendsScreen({super.key});
@@ -71,6 +72,8 @@ class _TrendsScreenState extends State<TrendsScreen> {
                     dailyGoals: _dailyGoals,
                     dailyMacros: _dailyMacros,
                   ),
+                  const SizedBox(height: 16),
+                  const WeightChartCard(),
                 ],
               ),
             ),
