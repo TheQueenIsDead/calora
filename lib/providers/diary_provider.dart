@@ -13,6 +13,7 @@ class DiaryProvider extends ChangeNotifier {
   int _dailyGoal = 2000;    // effective goal for _selectedDate — used in diary
   int _waterTargetMl = 2000;
   bool _loading = false;
+  bool _isLocked = false;
   int _waterMl = 0;
   int _bmr = 0;
   int _tdee = 0;
@@ -24,6 +25,7 @@ class DiaryProvider extends ChangeNotifier {
   int get dailyGoal => _dailyGoal;
   int get waterTargetMl => _waterTargetMl;
   bool get loading => _loading;
+  bool get isLocked => _isLocked;
   int get waterMl => _waterMl;
   int get bmr => _bmr;
   int get tdee => _tdee;
@@ -83,22 +85,51 @@ class DiaryProvider extends ChangeNotifier {
     // Use recorded goal for this date; fall back to the current setting
     _dailyGoal =
         await DatabaseService.instance.getEffectiveGoal(date) ?? _currentGoal;
+    // Lock state: past days locked by default; user override stored per day
+    final dateStr = date.toIso8601String().substring(0, 10);
+    final now = DateTime.now();
+    final todayStr = DateTime(now.year, now.month, now.day)
+        .toIso8601String()
+        .substring(0, 10);
+    final isPast = dateStr.compareTo(todayStr) < 0;
+    _isLocked = prefs.getBool('locked_$dateStr') ?? isPast;
     _loading = false;
     notifyListeners();
   }
 
+  Future<void> toggleLock() async {
+    _isLocked = !_isLocked;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    final dateStr = _selectedDate.toIso8601String().substring(0, 10);
+    final now = DateTime.now();
+    final todayStr = DateTime(now.year, now.month, now.day)
+        .toIso8601String()
+        .substring(0, 10);
+    final naturalDefault = dateStr.compareTo(todayStr) < 0;
+    // Only persist when the user has overridden the natural default
+    if (_isLocked == naturalDefault) {
+      await prefs.remove('locked_$dateStr');
+    } else {
+      await prefs.setBool('locked_$dateStr', _isLocked);
+    }
+  }
+
   Future<void> addEntry(DiaryEntry entry) async {
+    if (_isLocked) return;
     await DatabaseService.instance.addDiaryEntry(entry);
     await loadDay(_selectedDate);
   }
 
   Future<void> deleteEntry(String id) async {
+    if (_isLocked) return;
     await DatabaseService.instance.deleteDiaryEntry(id);
     _entries.removeWhere((e) => e.id == id);
     notifyListeners();
   }
 
   Future<void> moveEntry(String entryId, Meal newMeal) async {
+    if (_isLocked) return;
     await DatabaseService.instance.updateEntryMeal(entryId, newMeal);
     await loadDay(_selectedDate);
   }
@@ -127,6 +158,7 @@ class DiaryProvider extends ChangeNotifier {
   }
 
   Future<void> addWaterMl(int ml) async {
+    if (_isLocked) return;
     _waterMl = (_waterMl + ml).clamp(0, 99999);
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
@@ -134,6 +166,7 @@ class DiaryProvider extends ChangeNotifier {
   }
 
   Future<void> removeWaterMl(int ml) async {
+    if (_isLocked) return;
     _waterMl = (_waterMl - ml).clamp(0, 99999);
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
