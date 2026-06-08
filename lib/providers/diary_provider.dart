@@ -119,6 +119,15 @@ class DiaryProvider extends ChangeNotifier {
     await DatabaseService.instance.deleteDiaryEntry(id);
   }
 
+  @override
+  void dispose() {
+    for (final t in _pendingDeletes.values) {
+      t.cancel();
+    }
+    _pendingDeletes.clear();
+    super.dispose();
+  }
+
   Future<void> moveEntry(String entryId, Meal newMeal) async {
     if (_isLocked) return;
     await DatabaseService.instance.updateEntryMeal(entryId, newMeal);
