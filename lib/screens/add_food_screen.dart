@@ -55,7 +55,7 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
         date: DateTime.now(),
       ),
       DatabaseService.instance.getLastMealFoods(
-        meal: _previousMeal,
+        meal: widget.defaultMeal,
         date: DateTime.now(),
       ),
     ]);
@@ -181,7 +181,7 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
                   if (!_isSearching && _previousMealFoods.isNotEmpty) ...[
                     _SectionHeader(
                       icon: Icons.restaurant_menu,
-                      label: 'Previous ${_previousMeal.label}',
+                      label: 'Previous ${widget.defaultMeal.label}',
                     ),
                     for (final food in _previousMealFoods)
                       ListTile(
