@@ -3,6 +3,11 @@ name: Release Please
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag to build and upload APK for (e.g. v1.2.3)'
+        required: true
 
 permissions:
   contents: write
@@ -10,6 +15,7 @@ permissions:
 
 jobs:
   release-please:
+    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
@@ -21,11 +27,13 @@ jobs:
           release-type: dart
 
   build:
-    needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
+    if: ${{ needs.release-please.outputs.release_created || github.event_name == 'workflow_dispatch' }}
+    needs: [release-please]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag_name || '' }}
 
       - uses: actions/setup-java@v5
         with:
@@ -47,7 +55,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload ${{ needs.release-please.outputs.tag_name }} \
+          gh release upload ${{ github.event.inputs.tag_name || needs.release-please.outputs.tag_name }} \
             build/app/outputs/flutter-apk/app-release.apk \
             --repo ${{ github.repository }} \
             --clobber
