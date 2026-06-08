@@ -20,14 +20,23 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
   final _lookup = FoodLookupService();
   List<FoodItem> _foodResults = [];
   List<FoodItem> _recipeResults = [];
+  List<FoodItem> _recentFoods = [];
   bool _searching = false;
   String? _error;
   Timer? _debounce;
 
+  // The meal that preceded the current one — used to boost recent suggestions.
+  Meal get _previousMeal => switch (widget.defaultMeal) {
+        Meal.lunch => Meal.breakfast,
+        Meal.dinner => Meal.lunch,
+        Meal.snack => Meal.dinner,
+        Meal.breakfast => Meal.snack,
+      };
+
   @override
   void initState() {
     super.initState();
-    _loadAllRecipes();
+    _loadIdleState();
   }
 
   @override
@@ -37,16 +46,27 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
     super.dispose();
   }
 
-  Future<void> _loadAllRecipes() async {
-    final recipes = await DatabaseService.instance.getRecipesAsFood();
-    if (mounted) setState(() => _recipeResults = recipes);
+  Future<void> _loadIdleState() async {
+    final results = await Future.wait([
+      DatabaseService.instance.getRecipesAsFood(),
+      DatabaseService.instance.getRecentFoods(
+        previousMeal: _previousMeal,
+        date: DateTime.now(),
+      ),
+    ]);
+    if (mounted) {
+      setState(() {
+        _recipeResults = results[0];
+        _recentFoods = results[1];
+      });
+    }
   }
 
   void _onSearchChanged(String query) {
     _debounce?.cancel();
     if (query.trim().isEmpty) {
       if (mounted) setState(() { _foodResults = []; _searching = false; _error = null; });
-      _loadAllRecipes();
+      _loadIdleState();
       return;
     }
     if (mounted) setState(() { _searching = true; _error = null; });
@@ -151,11 +171,26 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
             Expanded(
               child: ListView(
                 children: [
+                  // ── Recent foods (idle state only) ───────────────────────
+                  if (!_isSearching && _recentFoods.isNotEmpty) ...[
+                    const _SectionHeader(icon: Icons.history, label: 'Recent'),
+                    for (final food in _recentFoods)
+                      ListTile(
+                        leading: const Icon(Icons.history, size: 20),
+                        title: Text(food.formattedName),
+                        subtitle: food.brand != null ? Text(food.brand!) : null,
+                        trailing: Text(
+                          '${food.caloriesPer100g.toStringAsFixed(0)} kcal/100g',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        onTap: () => _openDetail(food),
+                      ),
+                  ],
                   // ── Recipes section ──────────────────────────────────────
                   if (_recipeResults.isNotEmpty) ...[
                     _SectionHeader(
                       icon: Icons.menu_book_outlined,
-                      label: _isSearching ? 'My Recipes' : 'My Recipes',
+                      label: 'My Recipes',
                     ),
                     for (final food in _recipeResults)
                       ListTile(
