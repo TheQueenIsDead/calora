@@ -1,27 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#FF7043"/>
-      <stop offset="100%" stop-color="#AD1457"/>
+    <linearGradient id="g" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#5DD86A"/>
+      <stop offset="100%" stop-color="#196534"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="100" fill="url(#g)"/>
-  <circle cx="256" cy="256" r="160"
-    fill="none"
-    stroke="white"
-    stroke-width="28"
-    stroke-linecap="round"
-    stroke-dasharray="754 252"
-    transform="rotate(135 256 256)"
-    opacity="0.92"/>
-  <path fill="white" opacity="0.96"
-    d="M256 312
-       C223 312 202 291 202 264
-       C202 237 220 216 238 197
-       C233 217 244 222 250 210
-       C253 201 252 189 256 181
-       C260 189 259 201 262 210
-       C268 222 279 217 274 197
-       C292 216 310 238 310 265
-       C310 292 289 312 256 312Z"/>
+  <circle cx="256" cy="256" r="256" fill="url(#g)"/>
+  <!-- Lucide "apple" icon paths, scaled 14x and centered -->
+  <g transform="translate(84, 72) scale(14.5)">
+    <path fill="white"
+      d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"/>
+    <path fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"
+      d="M10 2c1 .5 2 2 2 5"/>
+  </g>
 </svg>
