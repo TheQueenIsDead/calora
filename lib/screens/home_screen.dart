@@ -56,12 +56,6 @@ class HomeScreen extends StatelessWidget {
               ],
             ),
             centerTitle: true,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () => _showGoalDialog(context, diary),
-              ),
-            ],
           ),
           body: diary.loading
               ? const Center(child: CircularProgressIndicator())
@@ -146,33 +140,6 @@ class HomeScreen extends StatelessWidget {
       lastDate: DateTime.now(),
     );
     if (picked != null) diary.loadDay(picked);
-  }
-
-  void _showGoalDialog(BuildContext context, DiaryProvider diary) {
-    final controller = TextEditingController(text: diary.dailyGoal.toString());
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Daily Calorie Goal'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(suffix: Text('kcal')),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              final val = int.tryParse(controller.text);
-              if (val != null && val > 0) diary.setDailyGoal(val);
-              Navigator.pop(ctx);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
   }
 
   bool _isToday(DateTime date) {
