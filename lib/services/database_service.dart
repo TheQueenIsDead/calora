@@ -55,7 +55,7 @@ class DatabaseService {
 
   // ── User DB (never wiped, holds diary + recipes + food cache) ─────────────
 
-  static const _kUserVersion = 2;
+  static const _kUserVersion = 3;
 
   Future<Database> _openUserDb() async {
     final dir = await getDatabasesPath();
@@ -66,6 +66,10 @@ class DatabaseService {
       onCreate: _createUserSchema,
       onUpgrade: (db, oldV, newV) async {
         if (oldV < 2) await _createGoalHistoryTable(db);
+        if (oldV < 3) {
+          await db.execute(
+              'ALTER TABLE recipes ADD COLUMN servings INTEGER NOT NULL DEFAULT 1');
+        }
       },
       onOpen: (db) async {
         // Idempotent guard: ensures goal_history exists even on devices
@@ -119,7 +123,8 @@ class DatabaseService {
       CREATE TABLE recipes (
         id          TEXT PRIMARY KEY,
         name        TEXT NOT NULL,
-        description TEXT
+        description TEXT,
+        servings    INTEGER NOT NULL DEFAULT 1
       )
     ''');
     await db.execute('''
@@ -377,7 +382,7 @@ class DatabaseService {
     final d = await userDb;
     final term = query.trim().isEmpty ? '%' : '%${query.trim().toLowerCase()}%';
     final rows = await d.rawQuery('''
-      SELECT r.id, r.name,
+      SELECT r.id, r.name, r.servings,
         COALESCE(SUM(ri.grams), 0)                                AS total_grams,
         COALESCE(SUM(ri.grams * f.calories_per_100g / 100.0), 0) AS cal,
         COALESCE(SUM(ri.grams * f.protein_per_100g  / 100.0), 0) AS protein,
@@ -393,7 +398,9 @@ class DatabaseService {
 
     return rows.map((row) {
       final totalGrams = (row['total_grams'] as num).toDouble();
+      final servings = (row['servings'] as num?)?.toInt() ?? 1;
       final factor = totalGrams > 0 ? 100.0 / totalGrams : 0.0;
+      final servingGrams = totalGrams > 0 ? totalGrams / servings : null;
       return FoodItem(
         id: 'recipe_${row['id']}',
         name: row['name'] as String,
@@ -401,7 +408,7 @@ class DatabaseService {
         proteinPer100g:  (row['protein'] as num).toDouble() * factor,
         fatPer100g:      (row['fat']     as num).toDouble() * factor,
         carbsPer100g:    (row['carbs']   as num).toDouble() * factor,
-        servingGrams:    totalGrams > 0 ? totalGrams : null,
+        servingGrams:    servingGrams,
         source: 'custom',
       );
     }).toList();
@@ -410,7 +417,7 @@ class DatabaseService {
   Future<FoodItem?> getRecipeAsFood(String recipeId) async {
     final d = await userDb;
     final rows = await d.rawQuery('''
-      SELECT r.id, r.name,
+      SELECT r.id, r.name, r.servings,
         COALESCE(SUM(ri.grams), 0)                                AS total_grams,
         COALESCE(SUM(ri.grams * f.calories_per_100g / 100.0), 0) AS cal,
         COALESCE(SUM(ri.grams * f.protein_per_100g  / 100.0), 0) AS protein,
@@ -425,6 +432,7 @@ class DatabaseService {
     if (rows.isEmpty) return null;
     final row = rows.first;
     final totalGrams = (row['total_grams'] as num).toDouble();
+    final servings = (row['servings'] as num?)?.toInt() ?? 1;
     final factor = totalGrams > 0 ? 100.0 / totalGrams : 0.0;
     return FoodItem(
       id: 'recipe_$recipeId',
@@ -433,7 +441,7 @@ class DatabaseService {
       proteinPer100g:  (row['protein'] as num).toDouble() * factor,
       fatPer100g:      (row['fat']     as num).toDouble() * factor,
       carbsPer100g:    (row['carbs']   as num).toDouble() * factor,
-      servingGrams:    totalGrams > 0 ? totalGrams : null,
+      servingGrams:    totalGrams > 0 ? totalGrams / servings : null,
       source: 'custom',
     );
   }
@@ -519,7 +527,7 @@ class DatabaseService {
 
   Future<List<Map<String, dynamic>>> getRecipes() async {
     return (await userDb).rawQuery('''
-      SELECT r.id, r.name, r.description,
+      SELECT r.id, r.name, r.description, r.servings,
         COALESCE(SUM(ri.grams * f.calories_per_100g / 100.0), 0) AS total_kcal
       FROM recipes r
       LEFT JOIN recipe_items ri ON ri.recipe_id = r.id
@@ -527,6 +535,11 @@ class DatabaseService {
       GROUP BY r.id
       ORDER BY r.name
     ''');
+  }
+
+  Future<void> updateRecipeServings(String id, int servings) async {
+    await (await userDb).update('recipes', {'servings': servings},
+        where: 'id = ?', whereArgs: [id]);
   }
 
   Future<String> saveRecipe(String name, String? description) async {

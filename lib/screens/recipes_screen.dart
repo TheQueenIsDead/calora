@@ -137,6 +137,7 @@ class RecipeDetailScreen extends StatefulWidget {
 class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   List<Map<String, dynamic>> _items = [];
   late String _name;
+  int _servings = 1;
 
   @override
   void initState() {
@@ -147,7 +148,17 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   Future<void> _load() async {
     final items = await DatabaseService.instance.getRecipeItems(widget.recipeId);
-    if (mounted) setState(() => _items = items);
+    final recipes = await DatabaseService.instance.getRecipes();
+    final recipe = recipes.firstWhere(
+      (r) => r['id'] == widget.recipeId,
+      orElse: () => <String, dynamic>{},
+    );
+    if (mounted) {
+      setState(() {
+        _items = items;
+        _servings = (recipe['servings'] as int?) ?? 1;
+      });
+    }
   }
 
   double get _totalCalories => _items.fold(
@@ -212,6 +223,36 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     _load();
   }
 
+  Future<void> _editServings() async {
+    final controller = TextEditingController(text: _servings.toString());
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Servings'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(hintText: 'Number of servings'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final v = int.tryParse(controller.text);
+              Navigator.pop(ctx, (v != null && v > 0) ? v : null);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result == null || !mounted) return;
+    await DatabaseService.instance.updateRecipeServings(widget.recipeId, result);
+    setState(() => _servings = result);
+  }
+
   Future<void> _rename() async {
     final controller = TextEditingController(text: _name);
     final newName = await showDialog<String>(
@@ -264,13 +305,44 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
               margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                child: Column(
                   children: [
-                    _MacroChip('${_totalCalories.toStringAsFixed(0)} kcal', 'Calories'),
-                    _MacroChip('${_totalProtein.toStringAsFixed(1)}g', 'Protein'),
-                    _MacroChip('${_totalFat.toStringAsFixed(1)}g', 'Fat'),
-                    _MacroChip('${_totalCarbs.toStringAsFixed(1)}g', 'Carbs'),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _MacroChip(
+                            '${(_totalCalories / _servings).toStringAsFixed(0)} kcal',
+                            'Calories'),
+                        _MacroChip(
+                            '${(_totalProtein / _servings).toStringAsFixed(1)}g',
+                            'Protein'),
+                        _MacroChip(
+                            '${(_totalFat / _servings).toStringAsFixed(1)}g',
+                            'Fat'),
+                        _MacroChip(
+                            '${(_totalCarbs / _servings).toStringAsFixed(1)}g',
+                            'Carbs'),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: _editServings,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$_servings serving${_servings == 1 ? '' : 's'} · per serving',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(Icons.edit_outlined,
+                              size: 12,
+                              color: Theme.of(context).colorScheme.primary),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
