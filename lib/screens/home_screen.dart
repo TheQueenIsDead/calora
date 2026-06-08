@@ -19,6 +19,11 @@ class HomeScreen extends StatelessWidget {
         return Scaffold(
           backgroundColor: Theme.of(context).colorScheme.surface,
           appBar: AppBar(
+            leading: IconButton(
+              icon: Icon(diary.isLocked ? Icons.lock : Icons.lock_open),
+              tooltip: diary.isLocked ? 'Unlock day' : 'Lock day',
+              onPressed: diary.toggleLock,
+            ),
             title: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -72,7 +77,7 @@ class HomeScreen extends StatelessWidget {
                       const SizedBox(height: 12),
                       _SummaryCard(diary: diary),
                       const SizedBox(height: 12),
-                      _WaterCard(diary: diary),
+                      _WaterCard(diary: diary, isLocked: diary.isLocked),
                       const SizedBox(height: 20),
                       for (final meal in Meal.values)
                         MealSection(
@@ -83,6 +88,7 @@ class HomeScreen extends StatelessWidget {
                           onMove: (entry, target) =>
                               diary.moveEntry(entry.id, target),
                           onSaveAsRecipe: () => _saveAsRecipe(context, meal),
+                          isLocked: diary.isLocked,
                         ),
                       const SizedBox(height: 16),
                     ],
@@ -261,7 +267,8 @@ class _SummaryCard extends StatelessWidget {
 
 class _WaterCard extends StatefulWidget {
   final DiaryProvider diary;
-  const _WaterCard({required this.diary});
+  final bool isLocked;
+  const _WaterCard({required this.diary, this.isLocked = false});
 
   @override
   State<_WaterCard> createState() => _WaterCardState();
@@ -318,7 +325,7 @@ class _WaterCardState extends State<_WaterCard> {
                             ?.copyWith(color: onBg.withValues(alpha: 0.7)),
                       ),
                       const Spacer(),
-                      GestureDetector(
+                      if (!widget.isLocked) GestureDetector(
                         onTap: () => setState(() => _subtracting = !_subtracting),
                         child: SizedBox(
                           width: 56,
@@ -386,7 +393,7 @@ class _WaterCardState extends State<_WaterCard> {
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: onBg.withValues(alpha: 0.65)),
                   ),
-                  if (vessels.isNotEmpty) ...[
+                  if (!widget.isLocked && vessels.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 6,
@@ -517,56 +524,38 @@ class _WeekStripState extends State<_WeekStrip> {
 
             return GestureDetector(
               onTap: isFuture ? null : () => widget.onDateSelected(date),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected
+                      ? theme.colorScheme.primary
+                      : hasData
+                          ? theme.colorScheme.primary.withValues(alpha: 0.15)
+                          : null,
+                  border: isToday && !isSelected
+                      ? Border.all(
+                          color: theme.colorScheme.primary, width: 1.5)
+                      : null,
+                ),
+                child: Center(
+                  child: Text(
                     dayLetters[i],
                     style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight:
+                          (isSelected || isToday) ? FontWeight.bold : null,
                       color: isSelected
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
-                      fontWeight: isSelected ? FontWeight.bold : null,
+                          ? theme.colorScheme.onPrimary
+                          : (hasData || isToday)
+                              ? theme.colorScheme.primary
+                              : isFuture
+                                  ? theme.colorScheme.onSurfaceVariant
+                                      .withValues(alpha: 0.35)
+                                  : theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isSelected
-                          ? theme.colorScheme.primary
-                          : hasData
-                              ? theme.colorScheme.primary.withValues(alpha: 0.15)
-                              : null,
-                      border: isToday && !isSelected
-                          ? Border.all(color: theme.colorScheme.primary, width: 1.5)
-                          : null,
-                    ),
-                    child: isFuture
-                        ? null
-                        : hasData
-                            ? Icon(
-                                Icons.check,
-                                size: 14,
-                                color: isSelected
-                                    ? theme.colorScheme.onPrimary
-                                    : theme.colorScheme.primary,
-                              )
-                            : isToday
-                                ? Center(
-                                    child: Text(
-                                      '${date.day}',
-                                      style: theme.textTheme.labelSmall?.copyWith(
-                                        color: theme.colorScheme.primary,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  )
-                                : null,
-                  ),
-                ],
+                ),
               ),
             );
           }),

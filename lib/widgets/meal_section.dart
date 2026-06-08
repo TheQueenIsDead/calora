@@ -10,6 +10,7 @@ class MealSection extends StatelessWidget {
   final VoidCallback onAdd;
   final Future<void> Function(DiaryEntry entry, Meal target) onMove;
   final Future<void> Function()? onSaveAsRecipe;
+  final bool isLocked;
 
   const MealSection({
     super.key,
@@ -19,6 +20,7 @@ class MealSection extends StatelessWidget {
     required this.onAdd,
     required this.onMove,
     this.onSaveAsRecipe,
+    this.isLocked = false,
   });
 
   double get _mealCalories => entries.fold(0, (sum, e) => sum + e.calories);
@@ -28,7 +30,7 @@ class MealSection extends StatelessWidget {
     final theme = Theme.of(context);
 
     return DragTarget<DiaryEntry>(
-      onWillAcceptWithDetails: (d) => d.data.meal != meal,
+      onWillAcceptWithDetails: (d) => !isLocked && d.data.meal != meal,
       onAcceptWithDetails: (d) => onMove(d.data, meal),
       builder: (context, candidateData, _) {
         final isHovered = candidateData.isNotEmpty;
@@ -64,7 +66,7 @@ class MealSection extends StatelessWidget {
                             color: theme.colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w600),
                       ),
-                      if (onSaveAsRecipe != null) ...[
+                      if (!isLocked && onSaveAsRecipe != null) ...[
                         const SizedBox(width: 4),
                         InkWell(
                           onTap: onSaveAsRecipe,
@@ -78,16 +80,18 @@ class MealSection extends StatelessWidget {
                         ),
                       ],
                     ],
-                    const SizedBox(width: 8),
-                    InkWell(
-                      onTap: onAdd,
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(Icons.add_circle_outline,
-                            size: 20, color: theme.colorScheme.primary),
+                    if (!isLocked) ...[
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: onAdd,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(Icons.add_circle_outline,
+                              size: 20, color: theme.colorScheme.primary),
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -109,7 +113,10 @@ class MealSection extends StatelessWidget {
                     children: [
                       for (int i = 0; i < entries.length; i++) ...[
                         if (i > 0) const Divider(height: 1, indent: 16),
-                        _EntryTile(entry: entries[i], onDelete: onDelete),
+                        _EntryTile(
+                            entry: entries[i],
+                            onDelete: onDelete,
+                            isLocked: isLocked),
                       ],
                     ],
                   ),
@@ -125,12 +132,16 @@ class MealSection extends StatelessWidget {
 class _EntryTile extends StatelessWidget {
   final DiaryEntry entry;
   final Future<void> Function(String) onDelete;
+  final bool isLocked;
 
-  const _EntryTile({required this.entry, required this.onDelete});
+  const _EntryTile(
+      {required this.entry, required this.onDelete, this.isLocked = false});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    if (isLocked) return _tileContent(context);
 
     return LongPressDraggable<DiaryEntry>(
       data: entry,
