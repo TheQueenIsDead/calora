@@ -439,7 +439,15 @@ class _VesselChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(vessel.icon, size: 16, color: color),
+            if (vessel.isSvgIcon && vessel.svgAsset != null)
+              SvgPicture.asset(
+                vessel.svgAsset!,
+                width: 16,
+                height: 16,
+                colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+              )
+            else
+              Icon(vessel.icon, size: 16, color: color),
             const SizedBox(width: 4),
             Text(
               vessel.ml >= 1000 ? '${vessel.ml ~/ 1000}L' : '${vessel.ml}ml',

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../models/water_vessel.dart';
@@ -37,7 +38,7 @@ class WaterVesselsScreen extends StatelessWidget {
                 final v = vessels[i];
                 return ListTile(
                   key: Key(v.id),
-                  leading: Icon(v.icon, color: Theme.of(context).colorScheme.primary),
+                  leading: _VesselIcon(vessel: v, size: 24),
                   title: Text(v.name),
                   subtitle: Text('${v.ml} ml'),
                   trailing: Row(
@@ -104,6 +105,27 @@ class WaterVesselsScreen extends StatelessWidget {
   }
 }
 
+// Renders either an SvgPicture or an Icon depending on the vessel's icon type.
+class _VesselIcon extends StatelessWidget {
+  final WaterVessel vessel;
+  final double size;
+  const _VesselIcon({required this.vessel, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).colorScheme.primary;
+    if (vessel.isSvgIcon && vessel.svgAsset != null) {
+      return SvgPicture.asset(
+        vessel.svgAsset!,
+        width: size,
+        height: size,
+        colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
+      );
+    }
+    return Icon(vessel.icon, size: size, color: c);
+  }
+}
+
 class _VesselDialog extends StatefulWidget {
   final WaterVessel? existing;
   const _VesselDialog({this.existing});
@@ -115,17 +137,26 @@ class _VesselDialog extends StatefulWidget {
 class _VesselDialogState extends State<_VesselDialog> {
   late TextEditingController _nameCtrl;
   late TextEditingController _mlCtrl;
-  late IconData _selectedIcon;
+  late VesselIconOption _selectedOption;
 
   @override
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.existing?.name ?? '');
-    _mlCtrl = TextEditingController(
-        text: widget.existing?.ml.toString() ?? '');
-    _selectedIcon = widget.existing != null
-        ? widget.existing!.icon
-        : WaterVessel.availableIcons.first;
+    _mlCtrl = TextEditingController(text: widget.existing?.ml.toString() ?? '');
+
+    final existing = widget.existing;
+    if (existing != null) {
+      _selectedOption = WaterVessel.availableIcons.firstWhere(
+        (opt) =>
+            opt.isSvg
+                ? opt.svgPath == existing.svgAsset
+                : opt.codePoint == existing.iconCodePoint,
+        orElse: () => WaterVessel.availableIcons.first,
+      );
+    } else {
+      _selectedOption = WaterVessel.availableIcons.first;
+    }
   }
 
   @override
@@ -173,29 +204,48 @@ class _VesselDialogState extends State<_VesselDialog> {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: WaterVessel.availableIcons.map((icon) {
-                final selected = icon.codePoint == _selectedIcon.codePoint;
-                return InkWell(
-                  onTap: () => setState(() => _selectedIcon = icon),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? theme.colorScheme.primaryContainer
-                          : theme.colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(8),
-                      border: selected
-                          ? Border.all(
-                              color: theme.colorScheme.primary, width: 2)
-                          : null,
-                    ),
-                    child: Icon(
-                      icon,
-                      color: selected
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
+              children: WaterVessel.availableIcons.map((opt) {
+                final selected = opt.isSvg
+                    ? opt.svgPath == _selectedOption.svgPath
+                    : opt.codePoint == _selectedOption.codePoint;
+                return Tooltip(
+                  message: opt.label,
+                  child: InkWell(
+                    onTap: () => setState(() => _selectedOption = opt),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? theme.colorScheme.primaryContainer
+                            : theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                        border: selected
+                            ? Border.all(
+                                color: theme.colorScheme.primary, width: 2)
+                            : null,
+                      ),
+                      child: Center(
+                        child: opt.isSvg
+                            ? SvgPicture.asset(
+                                opt.svgPath!,
+                                width: 24,
+                                height: 24,
+                                colorFilter: ColorFilter.mode(
+                                  selected
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.onSurfaceVariant,
+                                  BlendMode.srcIn,
+                                ),
+                              )
+                            : Icon(
+                                opt.iconData,
+                                color: selected
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.onSurfaceVariant,
+                              ),
+                      ),
                     ),
                   ),
                 );
@@ -217,7 +267,9 @@ class _VesselDialogState extends State<_VesselDialog> {
               id: widget.existing?.id ?? const Uuid().v4(),
               name: name,
               ml: ml,
-              iconCodePoint: _selectedIcon.codePoint,
+              iconCodePoint: _selectedOption.codePoint,
+              svgAsset:
+                  _selectedOption.isSvg ? _selectedOption.svgPath : null,
             );
             Navigator.pop(context, vessel);
           },

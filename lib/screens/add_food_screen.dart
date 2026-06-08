@@ -60,9 +60,11 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
       ),
     ]);
     if (mounted) {
+      final prevIds = results[2].map((f) => f.id).toSet();
       setState(() {
         _recipeResults = results[0];
-        _recentFoods = results[1];
+        // Exclude foods already shown in the Previous [Meal] strip.
+        _recentFoods = results[1].where((f) => !prevIds.contains(f.id)).toList();
         _previousMealFoods = results[2];
       });
     }
