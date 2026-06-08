@@ -364,7 +364,8 @@ class DatabaseService {
         WHERE e.meal = ? AND e.date = (
           SELECT MAX(date) FROM diary_entries WHERE meal = ? AND date < ?
         )
-        ORDER BY e.rowid
+        GROUP BY f.id
+        ORDER BY MIN(e.rowid)
       ''', [meal.name, meal.name, dateStr]);
       return rows.map((r) => FoodItem.fromMap(r)).toList();
     } catch (e) {

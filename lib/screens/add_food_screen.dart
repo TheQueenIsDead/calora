@@ -48,24 +48,27 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
   }
 
   Future<void> _loadIdleState() async {
+    final today = DateTime.now();
     final results = await Future.wait([
       DatabaseService.instance.getRecipesAsFood(),
-      DatabaseService.instance.getRecentFoods(
-        previousMeal: _previousMeal,
-        date: DateTime.now(),
-      ),
-      DatabaseService.instance.getLastMealFoods(
-        meal: widget.defaultMeal,
-        date: DateTime.now(),
-      ),
+      DatabaseService.instance.getRecentFoods(previousMeal: _previousMeal, date: today),
+      DatabaseService.instance.getLastMealFoods(meal: widget.defaultMeal, date: today),
     ]);
+    // Foods already logged in today's current meal — omit from suggestion strips
+    // so items the user has already added don't clutter the "Previous X" section.
+    final todayEntries = await DatabaseService.instance.getEntriesForDate(today);
+    final alreadyLoggedIds = todayEntries
+        .where((e) => e.meal == widget.defaultMeal)
+        .map((e) => e.food.id)
+        .toSet();
     if (mounted) {
       final prevIds = results[2].map((f) => f.id).toSet();
       setState(() {
         _recipeResults = results[0];
         // Exclude foods already shown in the Previous [Meal] strip.
         _recentFoods = results[1].where((f) => !prevIds.contains(f.id)).toList();
-        _previousMealFoods = results[2];
+        // Exclude foods already logged in today's meal from the suggestion strip.
+        _previousMealFoods = results[2].where((f) => !alreadyLoggedIds.contains(f.id)).toList();
       });
     }
   }
