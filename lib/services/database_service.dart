@@ -72,9 +72,14 @@ class DatabaseService {
         }
       },
       onOpen: (db) async {
-        // Idempotent guard: ensures goal_history exists even on devices
-        // whose DB was already at version 2 before the table was added.
+        // Idempotent guards — ensure schema additions land even on devices
+        // where onUpgrade was skipped due to version tracking quirks.
         await _createGoalHistoryTable(db);
+        final cols = await db.rawQuery('PRAGMA table_info(recipes)');
+        if (!cols.any((c) => c['name'] == 'servings')) {
+          await db.execute(
+              'ALTER TABLE recipes ADD COLUMN servings INTEGER NOT NULL DEFAULT 1');
+        }
       },
     );
   }

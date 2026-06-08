@@ -287,6 +287,11 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         title: Text(_name),
         actions: [
           IconButton(
+            icon: const Icon(Icons.restaurant_outlined),
+            tooltip: 'Set servings',
+            onPressed: _editServings,
+          ),
+          IconButton(
             icon: const Icon(Icons.edit_outlined),
             tooltip: 'Rename recipe',
             onPressed: _rename,
