@@ -194,7 +194,6 @@ class _EntryTile extends StatelessWidget {
               backgroundColor: theme.colorScheme.errorContainer,
               foregroundColor: theme.colorScheme.onErrorContainer,
               icon: Icons.delete_outline,
-              label: 'Delete',
             ),
           ],
         ),
