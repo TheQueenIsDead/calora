@@ -407,6 +407,37 @@ class DatabaseService {
     }).toList();
   }
 
+  Future<FoodItem?> getRecipeAsFood(String recipeId) async {
+    final d = await userDb;
+    final rows = await d.rawQuery('''
+      SELECT r.id, r.name,
+        COALESCE(SUM(ri.grams), 0)                                AS total_grams,
+        COALESCE(SUM(ri.grams * f.calories_per_100g / 100.0), 0) AS cal,
+        COALESCE(SUM(ri.grams * f.protein_per_100g  / 100.0), 0) AS protein,
+        COALESCE(SUM(ri.grams * f.fat_per_100g      / 100.0), 0) AS fat,
+        COALESCE(SUM(ri.grams * f.carbs_per_100g    / 100.0), 0) AS carbs
+      FROM recipes r
+      LEFT JOIN recipe_items ri ON ri.recipe_id = r.id
+      LEFT JOIN foods         f  ON f.id = ri.food_id
+      WHERE r.id = ?
+      GROUP BY r.id
+    ''', [recipeId]);
+    if (rows.isEmpty) return null;
+    final row = rows.first;
+    final totalGrams = (row['total_grams'] as num).toDouble();
+    final factor = totalGrams > 0 ? 100.0 / totalGrams : 0.0;
+    return FoodItem(
+      id: 'recipe_$recipeId',
+      name: row['name'] as String,
+      caloriesPer100g: (row['cal']     as num).toDouble() * factor,
+      proteinPer100g:  (row['protein'] as num).toDouble() * factor,
+      fatPer100g:      (row['fat']     as num).toDouble() * factor,
+      carbsPer100g:    (row['carbs']   as num).toDouble() * factor,
+      servingGrams:    totalGrams > 0 ? totalGrams : null,
+      source: 'custom',
+    );
+  }
+
   // ── Diary ─────────────────────────────────────────────────────────────────
 
   Future<void> addDiaryEntry(DiaryEntry entry) async {

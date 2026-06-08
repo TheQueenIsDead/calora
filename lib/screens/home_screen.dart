@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/diary_entry.dart';
+import '../models/water_vessel.dart';
 import '../providers/diary_provider.dart';
 import '../services/database_service.dart';
 import '../widgets/calorie_ring.dart';
@@ -81,19 +82,47 @@ class HomeScreen extends StatelessWidget {
                           onAdd: () => _addFood(context, meal),
                           onMove: (entry, target) =>
                               diary.moveEntry(entry.id, target),
+                          onSaveAsRecipe: () => _saveAsRecipe(context, meal),
                         ),
-                      const SizedBox(height: 80),
+                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: () => _addFood(context, Meal.snack),
-            icon: const Icon(Icons.add),
-            label: const Text('Add Food'),
-          ),
         );
       },
     );
+  }
+
+  Future<void> _saveAsRecipe(BuildContext context, Meal meal) async {
+    final diary = context.read<DiaryProvider>();
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Save ${meal.label} as recipe'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Recipe name'),
+          textCapitalization: TextCapitalization.sentences,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (name != null && name.isNotEmpty && context.mounted) {
+      await diary.createRecipeFromMeal(meal, name);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Saved "$name" as a recipe')),
+        );
+      }
+    }
   }
 
   Future<void> _addFood(BuildContext context, Meal meal) async {
@@ -164,39 +193,62 @@ class _SummaryCard extends StatelessWidget {
     final theme = Theme.of(context);
     final remaining = diary.remainingCalories;
     final isOver = remaining < 0;
+    final tdeeDeficit = diary.tdee > 0 ? diary.tdee - diary.totalCalories : null;
+    final tdeeIsSet = diary.tdee > 0;
 
     return Card(
       elevation: 0,
       color: theme.colorScheme.primaryContainer,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(14),
         child: Row(
           children: [
-            CalorieRing(progress: diary.progress, isOver: isOver),
-            const SizedBox(width: 24),
+            CalorieRing(progress: diary.progress, isOver: isOver, size: 72),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    isOver ? 'Over goal' : 'Remaining',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _StatBlock(
+                          label: isOver ? 'Over goal' : 'Remaining',
+                          value: '${remaining.abs().toStringAsFixed(0)} kcal',
+                          valueColor: isOver
+                              ? theme.colorScheme.error
+                              : theme.colorScheme.onPrimaryContainer,
+                          labelColor: theme.colorScheme.onPrimaryContainer
+                              .withValues(alpha: 0.7),
+                        ),
+                      ),
+                      Expanded(
+                        child: _StatBlock(
+                          label: tdeeIsSet
+                              ? (tdeeDeficit! > 0 ? 'TDEE deficit' : 'Above TDEE')
+                              : 'TDEE deficit',
+                          value: tdeeIsSet
+                              ? '${tdeeDeficit!.abs().toStringAsFixed(0)} kcal'
+                              : '—',
+                          valueColor: tdeeIsSet
+                              ? (tdeeDeficit! > 0
+                                  ? Colors.lightGreen.shade300
+                                  : theme.colorScheme.error)
+                              : theme.colorScheme.onPrimaryContainer
+                                  .withValues(alpha: 0.35),
+                          labelColor: theme.colorScheme.onPrimaryContainer
+                              .withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    '${remaining.abs().toStringAsFixed(0)} kcal',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: isOver ? theme.colorScheme.error : theme.colorScheme.onPrimaryContainer,
-                    ),
+                  const SizedBox(height: 8),
+                  _MacroBar(
+                    carbs: diary.totalCarbs,
+                    protein: diary.totalProtein,
+                    fat: diary.totalFat,
                   ),
-                  const SizedBox(height: 12),
-                  _MacroRow(label: 'Carbs', value: diary.totalCarbs, color: Colors.blue),
-                  const SizedBox(height: 4),
-                  _MacroRow(label: 'Protein', value: diary.totalProtein, color: Colors.orange),
-                  const SizedBox(height: 4),
-                  _MacroRow(label: 'Fat', value: diary.totalFat, color: Colors.purple),
                 ],
               ),
             ),
@@ -214,15 +266,22 @@ class _WaterCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cups = diary.waterCups;
-    final ml = cups * 250;
+    final ml = diary.waterMl;
+    final vessels = diary.vessels;
+
+    String mlLabel() {
+      if (ml == 0) return '0 ml';
+      if (ml >= 1000) return '${(ml / 1000).toStringAsFixed(ml % 100 == 0 ? 1 : 2)}L';
+      return '$ml ml';
+    }
 
     return Card(
       elevation: 0,
       color: theme.colorScheme.secondaryContainer,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(Icons.water_drop_outlined, color: theme.colorScheme.onSecondaryContainer),
             const SizedBox(width: 12),
@@ -237,31 +296,68 @@ class _WaterCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '$cups cups  ·  $ml ml',
+                    mlLabel(),
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: theme.colorScheme.onSecondaryContainer,
                     ),
                   ),
+                  if (vessels.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: vessels.map((v) => _VesselChip(
+                        vessel: v,
+                        onTap: () => diary.addWaterMl(v.ml),
+                        onLongPress: ml >= v.ml ? () => diary.removeWaterMl(v.ml) : null,
+                        color: theme.colorScheme.onSecondaryContainer,
+                      )).toList(),
+                    ),
+                  ],
                 ],
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.remove_circle_outline),
-              color: theme.colorScheme.onSecondaryContainer,
-              onPressed: cups > 0 ? () => diary.setWaterCups(cups - 1) : null,
-            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VesselChip extends StatelessWidget {
+  final WaterVessel vessel;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final Color color;
+
+  const _VesselChip({
+    required this.vessel,
+    required this.onTap,
+    required this.onLongPress,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(vessel.icon, size: 16, color: color),
+            const SizedBox(width: 4),
             Text(
-              '$cups',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.onSecondaryContainer,
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline),
-              color: theme.colorScheme.onSecondaryContainer,
-              onPressed: () => diary.setWaterCups(cups + 1),
+              vessel.ml >= 1000 ? '${vessel.ml ~/ 1000}L' : '${vessel.ml}ml',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
             ),
           ],
         ),
@@ -395,19 +491,107 @@ class _WeekStripState extends State<_WeekStrip> {
   }
 }
 
-class _MacroRow extends StatelessWidget {
+class _StatBlock extends StatelessWidget {
   final String label;
-  final double value;
-  final Color color;
-  const _MacroRow({required this.label, required this.value, required this.color});
+  final String value;
+  final Color valueColor;
+  final Color labelColor;
+
+  const _StatBlock({
+    required this.label,
+    required this.value,
+    required this.valueColor,
+    required this.labelColor,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 6),
-        Text('$label  ${value.toStringAsFixed(1)}g', style: Theme.of(context).textTheme.bodySmall),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(color: labelColor),
+        ),
+        Text(
+          value,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: valueColor,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MacroBar extends StatelessWidget {
+  final double carbs;
+  final double protein;
+  final double fat;
+  const _MacroBar({required this.carbs, required this.protein, required this.fat});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final onBg = theme.colorScheme.onPrimaryContainer;
+    final total = carbs + protein + fat;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            height: 8,
+            child: total > 0
+                ? Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    if (carbs > 0)
+                      Expanded(
+                        flex: (carbs / total * 1000).round(),
+                        child: const ColoredBox(color: Colors.blue),
+                      ),
+                    if (protein > 0)
+                      Expanded(
+                        flex: (protein / total * 1000).round(),
+                        child: const ColoredBox(color: Colors.orange),
+                      ),
+                    if (fat > 0)
+                      Expanded(
+                        flex: (fat / total * 1000).round(),
+                        child: const ColoredBox(color: Colors.purple),
+                      ),
+                  ])
+                : ColoredBox(color: onBg.withValues(alpha: 0.12)),
+          ),
+        ),
+        const SizedBox(height: 5),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _macroLabel(context, 'Carbs', carbs, Colors.blue),
+            _macroLabel(context, 'Protein', protein, Colors.orange),
+            _macroLabel(context, 'Fat', fat, Colors.purple),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _macroLabel(BuildContext context, String label, double value, Color color) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 3),
+        Text(
+          '${value.toStringAsFixed(0)}g $label',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
+          ),
+        ),
       ],
     );
   }

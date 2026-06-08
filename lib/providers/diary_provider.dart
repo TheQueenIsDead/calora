@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import '../models/diary_entry.dart';
+import '../models/water_vessel.dart';
 import '../services/database_service.dart';
 
 class DiaryProvider extends ChangeNotifier {
@@ -8,17 +11,24 @@ class DiaryProvider extends ChangeNotifier {
   DateTime _selectedDate = DateTime.now();
   int _currentGoal = 2000;  // most recently set goal — used in settings
   int _dailyGoal = 2000;    // effective goal for _selectedDate — used in diary
-  int _waterTarget = 8;
+  int _waterTargetMl = 2000;
   bool _loading = false;
-  int _waterCups = 0;
+  int _waterMl = 0;
+  int _bmr = 0;
+  int _tdee = 0;
+  List<WaterVessel> _vessels = [];
 
   List<DiaryEntry> get entries => _entries;
-DateTime get selectedDate => _selectedDate;
+  DateTime get selectedDate => _selectedDate;
   int get currentGoal => _currentGoal;
   int get dailyGoal => _dailyGoal;
-  int get waterTarget => _waterTarget;
+  int get waterTargetMl => _waterTargetMl;
   bool get loading => _loading;
-  int get waterCups => _waterCups;
+  int get waterMl => _waterMl;
+  int get bmr => _bmr;
+  int get tdee => _tdee;
+  List<WaterVessel> get vessels => _vessels;
+  double get waterProgress => _waterTargetMl > 0 ? (_waterMl / _waterTargetMl).clamp(0.0, 1.0) : 0.0;
 
   double get totalCalories => _entries.fold(0, (sum, e) => sum + e.calories);
   double get totalFat      => _entries.fold(0, (sum, e) => sum + e.fat);
@@ -30,12 +40,28 @@ DateTime get selectedDate => _selectedDate;
   List<DiaryEntry> entriesForMeal(Meal meal) =>
       _entries.where((e) => e.meal == meal).toList();
 
-  String _waterKey(DateTime date) => 'water_${date.toIso8601String().substring(0, 10)}';
-
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _currentGoal = prefs.getInt('daily_goal') ?? 2000;
-    _waterTarget = prefs.getInt('water_target') ?? 8;
+    // Migrate water target from cups to ml
+    final oldTarget = prefs.getInt('water_target');
+    if (oldTarget != null) {
+      _waterTargetMl = oldTarget * 250;
+      await prefs.setInt('water_target_ml', _waterTargetMl);
+      await prefs.remove('water_target');
+    } else {
+      _waterTargetMl = prefs.getInt('water_target_ml') ?? 2000;
+    }
+    // Load vessels
+    final vesselsJson = prefs.getString('water_vessels');
+    if (vesselsJson != null) {
+      final list = (jsonDecode(vesselsJson) as List);
+      _vessels = list.map((j) => WaterVessel.fromJson(j as Map<String, dynamic>)).toList();
+    } else {
+      _vessels = WaterVessel.defaults;
+    }
+    _bmr = prefs.getInt('bmr_value') ?? 0;
+    _tdee = prefs.getInt('tdee_value') ?? 0;
     await loadDay(_selectedDate);
   }
 
@@ -45,19 +71,20 @@ DateTime get selectedDate => _selectedDate;
     _selectedDate = date;
     _entries = await DatabaseService.instance.getEntriesForDate(date);
     final prefs = await SharedPreferences.getInstance();
-    _waterCups = prefs.getInt(_waterKey(date)) ?? 0;
+    // Migrate old cups-based water data
+    final oldCups = prefs.getInt('water_${date.toIso8601String().substring(0, 10)}');
+    if (oldCups != null && oldCups > 0) {
+      _waterMl = oldCups * 250;
+      await prefs.setInt('water_ml_${date.toIso8601String().substring(0, 10)}', _waterMl);
+      await prefs.remove('water_${date.toIso8601String().substring(0, 10)}');
+    } else {
+      _waterMl = prefs.getInt('water_ml_${date.toIso8601String().substring(0, 10)}') ?? 0;
+    }
     // Use recorded goal for this date; fall back to the current setting
     _dailyGoal =
         await DatabaseService.instance.getEffectiveGoal(date) ?? _currentGoal;
     _loading = false;
     notifyListeners();
-  }
-
-  Future<void> setWaterCups(int cups) async {
-    _waterCups = cups.clamp(0, 99);
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_waterKey(_selectedDate), _waterCups);
   }
 
   Future<void> addEntry(DiaryEntry entry) async {
@@ -85,10 +112,69 @@ DateTime get selectedDate => _selectedDate;
     await DatabaseService.instance.saveGoal(DateTime.now(), calories);
   }
 
-  Future<void> setWaterTarget(int cups) async {
-    _waterTarget = cups.clamp(1, 30);
+  Future<void> setBmr(int bmr) async {
+    _bmr = bmr;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('water_target', _waterTarget);
+    await prefs.setInt('bmr_value', bmr);
+  }
+
+  Future<void> setTdee(int tdee) async {
+    _tdee = tdee;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('tdee_value', tdee);
+  }
+
+  Future<void> addWaterMl(int ml) async {
+    _waterMl = (_waterMl + ml).clamp(0, 99999);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('water_ml_${_selectedDate.toIso8601String().substring(0, 10)}', _waterMl);
+  }
+
+  Future<void> removeWaterMl(int ml) async {
+    _waterMl = (_waterMl - ml).clamp(0, 99999);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('water_ml_${_selectedDate.toIso8601String().substring(0, 10)}', _waterMl);
+  }
+
+  Future<void> setWaterTargetMl(int ml) async {
+    _waterTargetMl = ml.clamp(1, 99999);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('water_target_ml', _waterTargetMl);
+  }
+
+  Future<void> setVessels(List<WaterVessel> vessels) async {
+    _vessels = vessels;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('water_vessels', jsonEncode(vessels.map((v) => v.toJson()).toList()));
+  }
+
+  Future<void> createRecipeFromMeal(Meal meal, String name) async {
+    final mealEntries = entriesForMeal(meal);
+    if (mealEntries.isEmpty) return;
+    final recipeId = await DatabaseService.instance.saveRecipe(name, null);
+    for (final entry in mealEntries) {
+      await DatabaseService.instance.saveFood(entry.food);
+      await DatabaseService.instance.addRecipeItem(recipeId, entry.food.id, entry.grams);
+    }
+    final recipeFood = await DatabaseService.instance.getRecipeAsFood(recipeId);
+    if (recipeFood == null) return;
+    for (final entry in mealEntries) {
+      await DatabaseService.instance.deleteDiaryEntry(entry.id);
+    }
+    final newEntry = DiaryEntry(
+      id: const Uuid().v4(),
+      food: recipeFood,
+      grams: recipeFood.servingGrams ?? 100,
+      date: _selectedDate,
+      meal: meal,
+    );
+    await DatabaseService.instance.addDiaryEntry(newEntry);
+    await loadDay(_selectedDate);
   }
 }

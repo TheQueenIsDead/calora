@@ -4,8 +4,14 @@ import 'dart:math' as math;
 class CalorieRing extends StatelessWidget {
   final double progress;
   final bool isOver;
+  final double size;
 
-  const CalorieRing({super.key, required this.progress, required this.isOver});
+  const CalorieRing({
+    super.key,
+    required this.progress,
+    required this.isOver,
+    this.size = 90,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -13,8 +19,8 @@ class CalorieRing extends StatelessWidget {
     final color = isOver ? theme.colorScheme.error : theme.colorScheme.primary;
 
     return SizedBox(
-      width: 90,
-      height: 90,
+      width: size,
+      height: size,
       child: CustomPaint(
         painter: _RingPainter(
           progress: progress.clamp(0.0, 1.0),
