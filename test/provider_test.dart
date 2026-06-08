@@ -140,4 +140,86 @@ void main() {
     final result = await DatabaseService.instance.getLastUsedGrams(food.id);
     expect(result, 175.0);
   });
+
+  test('last-used grams are overwritten on re-save', () async {
+    final food = _testFood();
+    await DatabaseService.instance.saveFood(food);
+    await DatabaseService.instance.saveLastUsedGrams(food.id, 100);
+    await DatabaseService.instance.saveLastUsedGrams(food.id, 250);
+    final result = await DatabaseService.instance.getLastUsedGrams(food.id);
+    expect(result, 250.0);
+  });
+
+  test('getLastUsedGrams returns null for unknown food', () async {
+    final result = await DatabaseService.instance.getLastUsedGrams('nonexistent_food_id');
+    expect(result, isNull);
+  });
+
+  // 500 kcal/100g: grams × 5 = kcal, making boundary arithmetic exact.
+  FoodItem _denseFood() => FoodItem(
+        id: const Uuid().v4(),
+        name: 'Dense Food',
+        caloriesPer100g: 500,
+        source: 'test',
+      );
+
+  test('three-state calorie warning: green → amber → red as intake rises', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+    await diary.setDailyGoal(2000);
+    await diary.setTdee(2500);
+
+    // Use a unique far-future date so other tests' entries don't contaminate totals.
+    final testDate = DateTime(2099, 1, 1);
+    await diary.loadDay(testDate);
+
+    final entry = DiaryEntry(
+      id: const Uuid().v4(),
+      food: _denseFood(),
+      grams: 300, // = 1500 kcal: under goal
+      date: testDate,
+      meal: Meal.breakfast,
+    );
+    await diary.addEntry(entry);
+
+    // 1500 kcal — under goal → green
+    expect(diary.totalCalories, closeTo(1500, 1));
+    expect(diary.remainingCalories, greaterThan(0));
+    expect(diary.tdee > 0 && diary.totalCalories > diary.tdee, isFalse);
+
+    // 2250 kcal — over 2000 goal, under 2500 TDEE → amber
+    await diary.updateEntryGrams(entry.id, 450);
+    expect(diary.totalCalories, closeTo(2250, 1));
+    expect(diary.remainingCalories, lessThan(0));
+    expect(diary.tdee > 0 && diary.totalCalories > diary.tdee, isFalse);
+
+    // 2750 kcal — over 2500 TDEE → red
+    await diary.updateEntryGrams(entry.id, 550);
+    expect(diary.totalCalories, closeTo(2750, 1));
+    expect(diary.tdee > 0 && diary.totalCalories > diary.tdee, isTrue);
+  });
+
+  test('three-state warning: isOverTdee is false when TDEE is unset', () async {
+    final diary = DiaryProvider();
+    await diary.init();
+    await diary.setDailyGoal(2000);
+    // TDEE intentionally not set (defaults to 0)
+
+    final testDate = DateTime(2099, 1, 2);
+    await diary.loadDay(testDate);
+
+    final entry = DiaryEntry(
+      id: const Uuid().v4(),
+      food: _denseFood(),
+      grams: 500, // = 2500 kcal: over goal but TDEE unset
+      date: testDate,
+      meal: Meal.breakfast,
+    );
+    await diary.addEntry(entry);
+
+    expect(diary.tdee, 0);
+    expect(diary.remainingCalories, lessThan(0)); // over goal
+    // isOverTdee must be false when TDEE is 0 — falls back to two-state (over goal only)
+    expect(diary.tdee > 0 && diary.totalCalories > diary.tdee, isFalse);
+  });
 }
