@@ -13,7 +13,10 @@ class WaterVessel {
     required this.iconCodePoint,
   });
 
-  IconData get icon => IconData(iconCodePoint, fontFamily: 'MaterialIcons');
+  IconData get icon => WaterVessel.availableIcons.firstWhere(
+        (i) => i.codePoint == iconCodePoint,
+        orElse: () => Icons.local_drink,
+      );
 
   Map<String, dynamic> toJson() => {
     'id': id,
