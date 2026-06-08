@@ -1,10 +1,16 @@
+// UI-only widget tests. No direct DB access — widget tests use Flutter's fake
+// async clock, which is incompatible with sqflite's real 10-second transaction
+// timers. DiaryProvider unit tests live in provider_test.dart.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:calora/main.dart';
+import 'package:calora/models/diary_entry.dart';
 import 'package:calora/providers/diary_provider.dart';
+import 'package:calora/screens/add_food_screen.dart';
 
 void main() {
   setUpAll(() {
@@ -12,7 +18,11 @@ void main() {
     databaseFactory = databaseFactoryFfi;
   });
 
-  testWidgets('app renders without crashing', (WidgetTester tester) async {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
+  testWidgets('app renders without crashing', (tester) async {
     await tester.pumpWidget(
       ChangeNotifierProvider(
         create: (_) => DiaryProvider(),
@@ -20,5 +30,36 @@ void main() {
       ),
     );
     expect(find.byType(MaterialApp), findsOneWidget);
+  });
+
+  testWidgets('AddFoodScreen shows search bar', (tester) async {
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: DiaryProvider(),
+        child: MaterialApp(
+          theme: ThemeData(useMaterial3: true),
+          home: const Scaffold(body: AddFoodScreen(defaultMeal: Meal.lunch)),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(SearchBar), findsOneWidget);
+    expect(find.text('Search foods…'), findsOneWidget);
+  });
+
+  testWidgets('AddFoodScreen shows loading indicator while searching', (tester) async {
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: DiaryProvider(),
+        child: MaterialApp(
+          theme: ThemeData(useMaterial3: true),
+          home: const Scaffold(body: AddFoodScreen(defaultMeal: Meal.lunch)),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.enterText(find.byType(SearchBar), 'chicken');
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(CircularProgressIndicator), findsWidgets);
   });
 }
