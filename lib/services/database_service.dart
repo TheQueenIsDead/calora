@@ -95,7 +95,7 @@ class DatabaseService {
 
   // ── User DB (never wiped, holds diary + recipes + food cache) ─────────────
 
-  static const _kUserVersion = 4;
+  static const _kUserVersion = 5;
 
   Future<Database> _openUserDb() async {
     final dir = await getDatabasesPath();
@@ -111,11 +111,13 @@ class DatabaseService {
               'ALTER TABLE recipes ADD COLUMN servings INTEGER NOT NULL DEFAULT 1');
         }
         if (oldV < 4) await _createWeightLogTable(db);
+        if (oldV < 5) await _createLastUsedGramsTable(db);
       },
     );
     await _createGoalHistoryTable(db);
     await _ensureRecipesServingsColumn(db);
     await _createWeightLogTable(db);
+    await _createLastUsedGramsTable(db);
     return db;
   }
 
@@ -144,6 +146,56 @@ class DatabaseService {
         kg   REAL NOT NULL
       )
     ''');
+  }
+
+  Future<void> _createLastUsedGramsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS last_used_grams (
+        food_id TEXT PRIMARY KEY,
+        grams   REAL NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> saveLastUsedGrams(String foodId, double grams) async {
+    try {
+      await (await userDb).insert(
+        'last_used_grams',
+        {'food_id': foodId, 'grams': grams},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (e) {
+      debugPrint('saveLastUsedGrams error: $e');
+    }
+  }
+
+  Future<double?> getLastUsedGrams(String foodId) async {
+    try {
+      final rows = await (await userDb).query(
+        'last_used_grams',
+        columns: ['grams'],
+        where: 'food_id = ?',
+        whereArgs: [foodId],
+      );
+      return rows.isEmpty ? null : (rows.first['grams'] as num).toDouble();
+    } catch (e) {
+      debugPrint('getLastUsedGrams error: $e');
+      return null;
+    }
+  }
+
+  Future<void> updateDiaryEntryGrams(String id, double grams) async {
+    try {
+      await (await userDb).update(
+        'diary_entries',
+        {'grams': grams},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    } catch (e) {
+      debugPrint('updateDiaryEntryGrams error: $e');
+      rethrow;
+    }
   }
 
   Future<void> _createUserSchema(Database db, int version) async {
@@ -199,6 +251,7 @@ class DatabaseService {
     await db.execute('CREATE INDEX idx_foods_barcode ON foods (barcode)');
     await _createGoalHistoryTable(db);
     await _createWeightLogTable(db);
+    await _createLastUsedGramsTable(db);
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

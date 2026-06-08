@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart' show Uuid;
 import '../models/diary_entry.dart';
 import '../models/food_item.dart';
 import '../providers/diary_provider.dart';
+import '../services/database_service.dart';
 
 class FoodDetailScreen extends StatefulWidget {
   final FoodItem food;
@@ -12,8 +13,11 @@ class FoodDetailScreen extends StatefulWidget {
   /// the meal picker is hidden and this callback receives the chosen grams.
   final Future<void> Function(double grams)? onAdd;
 
-  /// Override the initial gram value (defaults to servingGrams ?? 100).
+  /// Override the initial gram value (defaults to last-used → servingGrams → 100).
   final double? initialGrams;
+
+  /// If set, the screen edits an existing diary entry instead of adding a new one.
+  final String? existingEntryId;
 
   const FoodDetailScreen({
     super.key,
@@ -21,6 +25,7 @@ class FoodDetailScreen extends StatefulWidget {
     required this.defaultMeal,
     this.onAdd,
     this.initialGrams,
+    this.existingEntryId,
   });
 
   @override
@@ -40,6 +45,16 @@ class _FoodDetailScreenState extends State<FoodDetailScreen>
     final defaultGrams = widget.initialGrams ?? widget.food.servingGrams ?? 100.0;
     _gramsController = TextEditingController(text: defaultGrams.toStringAsFixed(0));
     _meal = widget.defaultMeal;
+
+    // Load last-used grams when no explicit override is provided.
+    if (widget.initialGrams == null) {
+      DatabaseService.instance.getLastUsedGrams(widget.food.id).then((g) {
+        if (g != null && mounted) {
+          _gramsController.text = g.toStringAsFixed(0);
+          setState(() {});
+        }
+      });
+    }
   }
 
   @override
@@ -173,6 +188,15 @@ class _FoodDetailScreenState extends State<FoodDetailScreen>
       if (mounted) Navigator.pop(context);
       return;
     }
+
+    await DatabaseService.instance.saveLastUsedGrams(widget.food.id, _grams);
+
+    if (widget.existingEntryId != null) {
+      await context.read<DiaryProvider>().updateEntryGrams(widget.existingEntryId!, _grams);
+      if (mounted) Navigator.pop(context);
+      return;
+    }
+
     final entry = DiaryEntry(
       id: const Uuid().v4(),
       food: widget.food,
@@ -223,7 +247,11 @@ class _FoodDetailScreenState extends State<FoodDetailScreen>
           child: FilledButton.icon(
             onPressed: _grams > 0 ? _log : null,
             icon: const Icon(Icons.add),
-            label: Text(widget.onAdd != null ? 'Add to Recipe' : 'Add to Diary'),
+            label: Text(widget.onAdd != null
+                ? 'Add to Recipe'
+                : widget.existingEntryId != null
+                    ? 'Save Changes'
+                    : 'Add to Diary'),
             style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
           ),
         ),

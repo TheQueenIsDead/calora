@@ -9,6 +9,7 @@ class MealSection extends StatelessWidget {
   final Future<void> Function(String) onDelete;
   final VoidCallback onAdd;
   final Future<void> Function(DiaryEntry entry, Meal target) onMove;
+  final void Function(DiaryEntry entry)? onEdit;
   final Future<void> Function()? onSaveAsRecipe;
   final bool isLocked;
 
@@ -19,6 +20,7 @@ class MealSection extends StatelessWidget {
     required this.onDelete,
     required this.onAdd,
     required this.onMove,
+    this.onEdit,
     this.onSaveAsRecipe,
     this.isLocked = false,
   });
@@ -116,6 +118,7 @@ class MealSection extends StatelessWidget {
                         _EntryTile(
                             entry: entries[i],
                             onDelete: onDelete,
+                            onEdit: onEdit,
                             isLocked: isLocked),
                       ],
                     ],
@@ -132,10 +135,15 @@ class MealSection extends StatelessWidget {
 class _EntryTile extends StatelessWidget {
   final DiaryEntry entry;
   final Future<void> Function(String) onDelete;
+  final void Function(DiaryEntry entry)? onEdit;
   final bool isLocked;
 
-  const _EntryTile(
-      {required this.entry, required this.onDelete, this.isLocked = false});
+  const _EntryTile({
+    required this.entry,
+    required this.onDelete,
+    this.onEdit,
+    this.isLocked = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -212,10 +220,16 @@ class _EntryTile extends StatelessWidget {
         color: theme.colorScheme.onSurfaceVariant,
       ),
       title: Text(entry.food.formattedName, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        '${entry.grams.toStringAsFixed(0)} g',
+        style: theme.textTheme.bodySmall
+            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      ),
       trailing: Text(
         '${entry.calories.toStringAsFixed(0)} kcal',
         style: theme.textTheme.bodySmall,
       ),
+      onTap: isLocked ? null : (onEdit != null ? () => onEdit!(entry) : null),
     );
   }
 

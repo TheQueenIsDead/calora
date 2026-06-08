@@ -18,6 +18,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
   Map<String, double> _dailyCalories = {};
   Map<String, int> _dailyGoals = {};
   Map<String, Map<String, double>> _dailyMacros = {};
+  int _tdee = 0;
   bool _loading = true;
 
   @override
@@ -29,7 +30,9 @@ class _TrendsScreenState extends State<TrendsScreen> {
   Future<void> _load() async {
     final to = DateTime.now();
     final from = to.subtract(const Duration(days: _days - 1));
-    final fallback = context.read<DiaryProvider>().currentGoal;
+    final provider = context.read<DiaryProvider>();
+    final fallback = provider.currentGoal;
+    final tdee = provider.tdee;
     final results = await Future.wait([
       DatabaseService.instance.getDailyCalories(from, to),
       DatabaseService.instance.getDailyGoals(from, to, fallback),
@@ -40,6 +43,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
         _dailyCalories = results[0] as Map<String, double>;
         _dailyGoals = results[1] as Map<String, int>;
         _dailyMacros = results[2] as Map<String, Map<String, double>>;
+        _tdee = tdee;
         _loading = false;
       });
     }
@@ -63,6 +67,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
                     dailyCalories: _dailyCalories,
                     dailyGoals: _dailyGoals,
                     days: _days,
+                    tdee: _tdee,
                   ),
                   const SizedBox(height: 16),
                   _MacroChart(dailyMacros: _dailyMacros, days: _days),
@@ -87,11 +92,13 @@ class _CalorieChart extends StatelessWidget {
   final Map<String, double> dailyCalories;
   final Map<String, int> dailyGoals;
   final int days;
+  final int tdee;
 
   const _CalorieChart({
     required this.dailyCalories,
     required this.dailyGoals,
     required this.days,
+    required this.tdee,
   });
 
   @override
@@ -99,11 +106,15 @@ class _CalorieChart extends StatelessWidget {
     final theme = Theme.of(context);
     final today = DateTime.now();
     final goalColor = theme.colorScheme.tertiary;
+    const tdeeColor = Colors.orange;
+    final hasTdee = tdee > 0;
 
     final bars = <BarChartGroupData>[];
     final goalSpots = <FlSpot>[];
     double maxY = 0;
     double? prevGoal;
+
+    if (hasTdee && tdee > maxY) maxY = tdee.toDouble();
 
     for (var i = 0; i < days; i++) {
       final date = today.subtract(Duration(days: days - 1 - i));
@@ -155,15 +166,19 @@ class _CalorieChart extends StatelessWidget {
                     child: Text('Calories — last $days days',
                         style: theme.textTheme.titleMedium),
                   ),
-                  Container(
-                    width: 16,
-                    height: 2,
-                    color: goalColor,
-                  ),
+                  Container(width: 16, height: 2, color: goalColor),
                   const SizedBox(width: 4),
                   Text('Goal',
                       style: theme.textTheme.labelSmall
                           ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  if (hasTdee) ...[
+                    const SizedBox(width: 12),
+                    Container(width: 16, height: 2, color: tdeeColor),
+                    const SizedBox(width: 4),
+                    Text('TDEE',
+                        style: theme.textTheme.labelSmall
+                            ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  ],
                 ],
               ),
             ),
@@ -225,6 +240,18 @@ class _CalorieChart extends StatelessWidget {
                             dotData: const FlDotData(show: false),
                             dashArray: [6, 4],
                           ),
+                          if (hasTdee)
+                            LineChartBarData(
+                              spots: [
+                                FlSpot(-1, tdee.toDouble()),
+                                FlSpot(days.toDouble(), tdee.toDouble()),
+                              ],
+                              isCurved: false,
+                              color: tdeeColor,
+                              barWidth: 1.5,
+                              dotData: const FlDotData(show: false),
+                              dashArray: [3, 4],
+                            ),
                         ],
                         titlesData: FlTitlesData(
                           leftTitles: AxisTitles(

@@ -9,6 +9,7 @@ import '../services/database_service.dart';
 import '../widgets/calorie_ring.dart';
 import '../widgets/meal_section.dart';
 import 'add_food_screen.dart';
+import 'food_detail_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -67,6 +68,7 @@ class HomeScreen extends StatelessWidget {
                     children: [
                       _WeekStrip(
                         selectedDate: diary.selectedDate,
+                        changeToken: diary.changeToken,
                         onDateSelected: diary.loadDay,
                       ),
                       const SizedBox(height: 12),
@@ -79,6 +81,7 @@ class HomeScreen extends StatelessWidget {
                           meal: meal,
                           entries: diary.entriesForMeal(meal),
                           onDelete: (id) => _handleDelete(context, diary, id),
+                          onEdit: (entry) => _editEntry(context, entry),
                           onAdd: () => _addFood(context, meal),
                           onMove: (entry, target) =>
                               diary.moveEntry(entry.id, target),
@@ -140,6 +143,20 @@ class HomeScreen extends StatelessWidget {
         );
       }
     }
+  }
+
+  Future<void> _editEntry(BuildContext context, DiaryEntry entry) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FoodDetailScreen(
+          food: entry.food,
+          defaultMeal: entry.meal,
+          existingEntryId: entry.id,
+          initialGrams: entry.grams,
+        ),
+      ),
+    );
   }
 
   Future<void> _addFood(BuildContext context, Meal meal) async {
@@ -464,8 +481,13 @@ class _VesselChip extends StatelessWidget {
 
 class _WeekStrip extends StatefulWidget {
   final DateTime selectedDate;
+  final int changeToken;
   final void Function(DateTime) onDateSelected;
-  const _WeekStrip({required this.selectedDate, required this.onDateSelected});
+  const _WeekStrip({
+    required this.selectedDate,
+    required this.changeToken,
+    required this.onDateSelected,
+  });
 
   @override
   State<_WeekStrip> createState() => _WeekStripState();
@@ -483,7 +505,8 @@ class _WeekStripState extends State<_WeekStrip> {
   @override
   void didUpdateWidget(_WeekStrip old) {
     super.didUpdateWidget(old);
-    if (_weekStart(widget.selectedDate) != _weekStart(old.selectedDate)) {
+    if (_weekStart(widget.selectedDate) != _weekStart(old.selectedDate) ||
+        widget.changeToken != old.changeToken) {
       _load();
     }
   }
