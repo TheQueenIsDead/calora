@@ -295,6 +295,30 @@ class DatabaseService {
     }
   }
 
+  /// Returns all foods from the most recent logged instance of [meal] on or
+  /// before [date]. Used to show a "Previous Breakfast / Lunch / …" strip.
+  Future<List<FoodItem>> getLastMealFoods({
+    required Meal meal,
+    required DateTime date,
+  }) async {
+    try {
+      final d = await userDb;
+      final dateStr = date.toIso8601String().substring(0, 10);
+      final rows = await d.rawQuery('''
+        SELECT f.* FROM diary_entries e
+        JOIN foods f ON f.id = e.food_id
+        WHERE e.meal = ? AND e.date = (
+          SELECT MAX(date) FROM diary_entries WHERE meal = ? AND date <= ?
+        )
+        ORDER BY e.rowid
+      ''', [meal.name, meal.name, dateStr]);
+      return rows.map((r) => FoodItem.fromMap(r)).toList();
+    } catch (e) {
+      debugPrint('getLastMealFoods error: $e');
+      return [];
+    }
+  }
+
   /// Returns recent foods from diary, prioritising [previousMeal] on [date].
   /// Used to populate suggestions when the search query is empty.
   Future<List<FoodItem>> getRecentFoods({

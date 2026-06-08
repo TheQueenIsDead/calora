@@ -21,11 +21,12 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
   List<FoodItem> _foodResults = [];
   List<FoodItem> _recipeResults = [];
   List<FoodItem> _recentFoods = [];
+  List<FoodItem> _previousMealFoods = [];
   bool _searching = false;
   String? _error;
   Timer? _debounce;
 
-  // The meal that preceded the current one — used to boost recent suggestions.
+  // The meal that preceded the current one in the day's natural flow.
   Meal get _previousMeal => switch (widget.defaultMeal) {
         Meal.lunch => Meal.breakfast,
         Meal.dinner => Meal.lunch,
@@ -53,11 +54,16 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
         previousMeal: _previousMeal,
         date: DateTime.now(),
       ),
+      DatabaseService.instance.getLastMealFoods(
+        meal: _previousMeal,
+        date: DateTime.now(),
+      ),
     ]);
     if (mounted) {
       setState(() {
         _recipeResults = results[0];
         _recentFoods = results[1];
+        _previousMealFoods = results[2];
       });
     }
   }
@@ -171,6 +177,24 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
             Expanded(
               child: ListView(
                 children: [
+                  // ── Previous meal strip (idle state only) ────────────────
+                  if (!_isSearching && _previousMealFoods.isNotEmpty) ...[
+                    _SectionHeader(
+                      icon: Icons.restaurant_menu,
+                      label: 'Previous ${_previousMeal.label}',
+                    ),
+                    for (final food in _previousMealFoods)
+                      ListTile(
+                        leading: const Icon(Icons.restaurant_menu, size: 20),
+                        title: Text(food.formattedName),
+                        subtitle: food.brand != null ? Text(food.brand!) : null,
+                        trailing: Text(
+                          '${food.caloriesPer100g.toStringAsFixed(0)} kcal/100g',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        onTap: () => _openDetail(food),
+                      ),
+                  ],
                   // ── Recent foods (idle state only) ───────────────────────
                   if (!_isSearching && _recentFoods.isNotEmpty) ...[
                     const _SectionHeader(icon: Icons.history, label: 'Recent'),
