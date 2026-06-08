@@ -320,33 +320,60 @@ class _WaterCardState extends State<_WaterCard> {
                       const Spacer(),
                       GestureDetector(
                         onTap: () => setState(() => _subtracting = !_subtracting),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: _subtracting
-                                ? theme.colorScheme.error.withValues(alpha: 0.15)
-                                : onBg.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                        child: SizedBox(
+                          width: 56,
+                          height: 26,
+                          child: Stack(
                             children: [
-                              Icon(
-                                _subtracting ? Icons.remove : Icons.add,
-                                size: 13,
-                                color: _subtracting
-                                    ? theme.colorScheme.error
-                                    : onBg.withValues(alpha: 0.7),
-                              ),
-                              const SizedBox(width: 3),
-                              Text(
-                                _subtracting ? 'Remove' : 'Add',
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: _subtracting
-                                      ? theme.colorScheme.error
-                                      : onBg.withValues(alpha: 0.7),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: onBg.withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(13),
                                 ),
+                              ),
+                              AnimatedAlign(
+                                duration: const Duration(milliseconds: 150),
+                                curve: Curves.easeInOut,
+                                alignment: _subtracting
+                                    ? Alignment.centerLeft
+                                    : Alignment.centerRight,
+                                child: Container(
+                                  width: 28,
+                                  height: 22,
+                                  margin: const EdgeInsets.all(2),
+                                  decoration: BoxDecoration(
+                                    color: _subtracting
+                                        ? theme.colorScheme.error
+                                        : Colors.lightBlue.shade400,
+                                    borderRadius: BorderRadius.circular(11),
+                                  ),
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.remove,
+                                        size: 14,
+                                        color: _subtracting
+                                            ? Colors.white
+                                            : onBg.withValues(alpha: 0.45),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.add,
+                                        size: 14,
+                                        color: !_subtracting
+                                            ? Colors.white
+                                            : onBg.withValues(alpha: 0.45),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
