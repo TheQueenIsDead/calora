@@ -295,8 +295,9 @@ class DatabaseService {
     }
   }
 
-  /// Returns all foods from the most recent logged instance of [meal] on or
-  /// before [date]. Used to show a "Previous Breakfast / Lunch / …" strip.
+  /// Returns all foods from the most recent logged instance of [meal] on a
+  /// date strictly before [date]. Used to show a "Previous Breakfast / …"
+  /// strip without echoing back what's already in today's diary.
   Future<List<FoodItem>> getLastMealFoods({
     required Meal meal,
     required DateTime date,
@@ -308,7 +309,7 @@ class DatabaseService {
         SELECT f.* FROM diary_entries e
         JOIN foods f ON f.id = e.food_id
         WHERE e.meal = ? AND e.date = (
-          SELECT MAX(date) FROM diary_entries WHERE meal = ? AND date <= ?
+          SELECT MAX(date) FROM diary_entries WHERE meal = ? AND date < ?
         )
         ORDER BY e.rowid
       ''', [meal.name, meal.name, dateStr]);
