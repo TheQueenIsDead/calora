@@ -26,6 +26,7 @@ class WaterVesselsScreen extends StatelessWidget {
           : ReorderableListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: vessels.length,
+              // ignore: deprecated_member_use
               onReorder: (oldIndex, newIndex) {
                 final updated = [...vessels];
                 if (newIndex > oldIndex) newIndex--;
