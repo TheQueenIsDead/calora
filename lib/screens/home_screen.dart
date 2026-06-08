@@ -259,9 +259,16 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
-class _WaterCard extends StatelessWidget {
+class _WaterCard extends StatefulWidget {
   final DiaryProvider diary;
   const _WaterCard({required this.diary});
+
+  @override
+  State<_WaterCard> createState() => _WaterCardState();
+}
+
+class _WaterCardState extends State<_WaterCard> {
+  bool _subtracting = false;
 
   String _mlLabel(int ml) {
     if (ml == 0) return '0\nml';
@@ -275,10 +282,12 @@ class _WaterCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final diary = widget.diary;
     final ml = diary.waterMl;
     final targetMl = diary.waterTargetMl;
     final vessels = diary.vessels;
     final onBg = theme.colorScheme.onSecondaryContainer;
+    final chipColor = _subtracting ? theme.colorScheme.error : onBg;
 
     return Card(
       elevation: 0,
@@ -301,10 +310,49 @@ class _WaterCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Water',
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: onBg.withValues(alpha: 0.7)),
+                  Row(
+                    children: [
+                      Text(
+                        'Water',
+                        style: theme.textTheme.labelSmall
+                            ?.copyWith(color: onBg.withValues(alpha: 0.7)),
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () => setState(() => _subtracting = !_subtracting),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _subtracting
+                                ? theme.colorScheme.error.withValues(alpha: 0.15)
+                                : onBg.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _subtracting ? Icons.remove : Icons.add,
+                                size: 13,
+                                color: _subtracting
+                                    ? theme.colorScheme.error
+                                    : onBg.withValues(alpha: 0.7),
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                _subtracting ? 'Remove' : 'Add',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: _subtracting
+                                      ? theme.colorScheme.error
+                                      : onBg.withValues(alpha: 0.7),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   Text(
                     'Target  $targetMl ml',
@@ -319,11 +367,10 @@ class _WaterCard extends StatelessWidget {
                       children: vessels
                           .map((v) => _VesselChip(
                                 vessel: v,
-                                onTap: () => diary.addWaterMl(v.ml),
-                                onLongPress: ml >= v.ml
-                                    ? () => diary.removeWaterMl(v.ml)
-                                    : null,
-                                color: onBg,
+                                onTap: () => _subtracting
+                                    ? diary.removeWaterMl(v.ml)
+                                    : diary.addWaterMl(v.ml),
+                                color: chipColor,
                               ))
                           .toList(),
                     ),
@@ -341,13 +388,11 @@ class _WaterCard extends StatelessWidget {
 class _VesselChip extends StatelessWidget {
   final WaterVessel vessel;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
   final Color color;
 
   const _VesselChip({
     required this.vessel,
     required this.onTap,
-    required this.onLongPress,
     required this.color,
   });
 
@@ -355,9 +400,9 @@ class _VesselChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(20),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.12),
