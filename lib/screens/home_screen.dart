@@ -199,9 +199,19 @@ class _SummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final remaining = diary.remainingCalories;
-    final isOver = remaining < 0;
+    final isOverGoal = remaining < 0;
+    final isOverTdee = diary.tdee > 0 && diary.totalCalories > diary.tdee;
     final tdeeDeficit = diary.tdee > 0 ? diary.tdee - diary.totalCalories : null;
     final tdeeIsSet = diary.tdee > 0;
+
+    final Color goalStateColor;
+    if (isOverTdee) {
+      goalStateColor = theme.colorScheme.error;
+    } else if (isOverGoal) {
+      goalStateColor = Colors.amber;
+    } else {
+      goalStateColor = theme.colorScheme.onPrimaryContainer;
+    }
 
     return Card(
       elevation: 0,
@@ -210,7 +220,15 @@ class _SummaryCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Row(
           children: [
-            CalorieRing(progress: diary.progress, isOver: isOver, size: 72),
+            CalorieRing(
+              progress: diary.progress,
+              size: 72,
+              color: isOverTdee
+                  ? theme.colorScheme.error
+                  : isOverGoal
+                      ? Colors.amber
+                      : null,
+            ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -221,11 +239,13 @@ class _SummaryCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _StatBlock(
-                          label: isOver ? 'Over goal' : 'Remaining',
+                          label: isOverTdee
+                              ? 'Over TDEE'
+                              : isOverGoal
+                                  ? 'Over goal'
+                                  : 'Remaining',
                           value: '${remaining.abs().toStringAsFixed(0)} kcal',
-                          valueColor: isOver
-                              ? theme.colorScheme.error
-                              : theme.colorScheme.onPrimaryContainer,
+                          valueColor: goalStateColor,
                           labelColor: theme.colorScheme.onPrimaryContainer
                               .withValues(alpha: 0.7),
                         ),

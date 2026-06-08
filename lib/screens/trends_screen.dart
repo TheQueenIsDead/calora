@@ -124,17 +124,23 @@ class _CalorieChart extends StatelessWidget {
       if (kcal > maxY) maxY = kcal;
       if (dayGoal > maxY) maxY = dayGoal;
 
-      final isOver = kcal > dayGoal;
+      final Color barColor;
+      if (kcal == 0) {
+        barColor = theme.colorScheme.outlineVariant;
+      } else if (hasTdee && kcal > tdee) {
+        barColor = theme.colorScheme.error;
+      } else if (kcal > dayGoal) {
+        barColor = Colors.amber;
+      } else {
+        barColor = theme.colorScheme.primary;
+      }
+
       bars.add(BarChartGroupData(
         x: i,
         barRods: [
           BarChartRodData(
             toY: kcal,
-            color: kcal == 0
-                ? theme.colorScheme.outlineVariant
-                : isOver
-                    ? theme.colorScheme.error
-                    : theme.colorScheme.primary,
+            color: barColor,
             width: 8,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
           ),
