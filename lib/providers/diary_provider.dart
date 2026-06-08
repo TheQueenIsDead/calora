@@ -1,19 +1,18 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/diary_entry.dart';
 import '../models/water_vessel.dart';
 import '../services/database_service.dart';
+import '../services/user_preferences.dart';
 
 class DiaryProvider extends ChangeNotifier {
   List<DiaryEntry> _entries = [];
   DateTime _selectedDate = DateTime.now();
   final Map<String, Timer> _pendingDeletes = {};
   final Map<String, DiaryEntry> _deletedEntries = {};
-  int _currentGoal = 2000;  // most recently set goal — used in settings
-  int _dailyGoal = 2000;    // effective goal for _selectedDate — used in diary
+  int _currentGoal = 2000;
+  int _dailyGoal = 2000;
   int _waterTargetMl = 2000;
   bool _loading = false;
   bool _isLocked = false;
@@ -33,40 +32,27 @@ class DiaryProvider extends ChangeNotifier {
   int get bmr => _bmr;
   int get tdee => _tdee;
   List<WaterVessel> get vessels => _vessels;
-  double get waterProgress => _waterTargetMl > 0 ? (_waterMl / _waterTargetMl).clamp(0.0, 1.0) : 0.0;
+  double get waterProgress =>
+      _waterTargetMl > 0 ? (_waterMl / _waterTargetMl).clamp(0.0, 1.0) : 0.0;
 
   double get totalCalories => _entries.fold(0, (sum, e) => sum + e.calories);
-  double get totalFat      => _entries.fold(0, (sum, e) => sum + e.fat);
-  double get totalCarbs    => _entries.fold(0, (sum, e) => sum + e.carbs);
-  double get totalProtein  => _entries.fold(0, (sum, e) => sum + e.protein);
+  double get totalFat => _entries.fold(0, (sum, e) => sum + e.fat);
+  double get totalCarbs => _entries.fold(0, (sum, e) => sum + e.carbs);
+  double get totalProtein => _entries.fold(0, (sum, e) => sum + e.protein);
   double get remainingCalories => _dailyGoal - totalCalories;
-  double get progress => (_dailyGoal > 0 ? totalCalories / _dailyGoal : 0.0).clamp(0.0, 1.0);
+  double get progress =>
+      (_dailyGoal > 0 ? totalCalories / _dailyGoal : 0.0).clamp(0.0, 1.0);
 
   List<DiaryEntry> entriesForMeal(Meal meal) =>
       _entries.where((e) => e.meal == meal).toList();
 
   Future<void> init() async {
-    final prefs = await SharedPreferences.getInstance();
-    _currentGoal = prefs.getInt('daily_goal') ?? 2000;
-    // Migrate water target from cups to ml
-    final oldTarget = prefs.getInt('water_target');
-    if (oldTarget != null) {
-      _waterTargetMl = oldTarget * 250;
-      await prefs.setInt('water_target_ml', _waterTargetMl);
-      await prefs.remove('water_target');
-    } else {
-      _waterTargetMl = prefs.getInt('water_target_ml') ?? 2000;
-    }
-    // Load vessels
-    final vesselsJson = prefs.getString('water_vessels');
-    if (vesselsJson != null) {
-      final list = (jsonDecode(vesselsJson) as List);
-      _vessels = list.map((j) => WaterVessel.fromJson(j as Map<String, dynamic>)).toList();
-    } else {
-      _vessels = WaterVessel.defaults;
-    }
-    _bmr = prefs.getInt('bmr_value') ?? 0;
-    _tdee = prefs.getInt('tdee_value') ?? 0;
+    final prefs = UserPreferences.instance;
+    _currentGoal = await prefs.getDailyGoal();
+    _waterTargetMl = await prefs.getWaterTargetMl();
+    _vessels = await prefs.getVessels();
+    _bmr = await prefs.getBmr();
+    _tdee = await prefs.getTdee();
     await loadDay(_selectedDate);
   }
 
@@ -75,27 +61,11 @@ class DiaryProvider extends ChangeNotifier {
     notifyListeners();
     _selectedDate = date;
     _entries = await DatabaseService.instance.getEntriesForDate(date);
-    final prefs = await SharedPreferences.getInstance();
-    // Migrate old cups-based water data
-    final oldCups = prefs.getInt('water_${date.toIso8601String().substring(0, 10)}');
-    if (oldCups != null && oldCups > 0) {
-      _waterMl = oldCups * 250;
-      await prefs.setInt('water_ml_${date.toIso8601String().substring(0, 10)}', _waterMl);
-      await prefs.remove('water_${date.toIso8601String().substring(0, 10)}');
-    } else {
-      _waterMl = prefs.getInt('water_ml_${date.toIso8601String().substring(0, 10)}') ?? 0;
-    }
-    // Use recorded goal for this date; fall back to the current setting
+    final prefs = UserPreferences.instance;
+    _waterMl = await prefs.getWaterMlForDate(date);
     _dailyGoal =
         await DatabaseService.instance.getEffectiveGoal(date) ?? _currentGoal;
-    // Lock state: past days locked by default; user override stored per day
-    final dateStr = date.toIso8601String().substring(0, 10);
-    final now = DateTime.now();
-    final todayStr = DateTime(now.year, now.month, now.day)
-        .toIso8601String()
-        .substring(0, 10);
-    final isPast = dateStr.compareTo(todayStr) < 0;
-    _isLocked = prefs.getBool('locked_$dateStr') ?? isPast;
+    _isLocked = await prefs.getLockState(date);
     _loading = false;
     notifyListeners();
   }
@@ -103,19 +73,7 @@ class DiaryProvider extends ChangeNotifier {
   Future<void> toggleLock() async {
     _isLocked = !_isLocked;
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    final dateStr = _selectedDate.toIso8601String().substring(0, 10);
-    final now = DateTime.now();
-    final todayStr = DateTime(now.year, now.month, now.day)
-        .toIso8601String()
-        .substring(0, 10);
-    final naturalDefault = dateStr.compareTo(todayStr) < 0;
-    // Only persist when the user has overridden the natural default
-    if (_isLocked == naturalDefault) {
-      await prefs.remove('locked_$dateStr');
-    } else {
-      await prefs.setBool('locked_$dateStr', _isLocked);
-    }
+    await UserPreferences.instance.setLockState(_selectedDate, _isLocked);
   }
 
   Future<void> addEntry(DiaryEntry entry) async {
@@ -131,8 +89,6 @@ class DiaryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Removes the entry from the UI immediately and schedules a DB delete after
-  // 5 seconds. Returns the removed entry so the caller can offer an undo action.
   Future<DiaryEntry?> softDeleteEntry(String id) async {
     if (_isLocked) return null;
     final idx = _entries.indexWhere((e) => e.id == id);
@@ -173,53 +129,46 @@ class DiaryProvider extends ChangeNotifier {
     _currentGoal = calories;
     _dailyGoal = calories;
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('daily_goal', calories);
+    await UserPreferences.instance.setDailyGoal(calories);
     await DatabaseService.instance.saveGoal(DateTime.now(), calories);
   }
 
   Future<void> setBmr(int bmr) async {
     _bmr = bmr;
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('bmr_value', bmr);
+    await UserPreferences.instance.setBmr(bmr);
   }
 
   Future<void> setTdee(int tdee) async {
     _tdee = tdee;
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('tdee_value', tdee);
+    await UserPreferences.instance.setTdee(tdee);
   }
 
   Future<void> addWaterMl(int ml) async {
     if (_isLocked) return;
     _waterMl = (_waterMl + ml).clamp(0, 99999);
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('water_ml_${_selectedDate.toIso8601String().substring(0, 10)}', _waterMl);
+    await UserPreferences.instance.setWaterMlForDate(_selectedDate, _waterMl);
   }
 
   Future<void> removeWaterMl(int ml) async {
     if (_isLocked) return;
     _waterMl = (_waterMl - ml).clamp(0, 99999);
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('water_ml_${_selectedDate.toIso8601String().substring(0, 10)}', _waterMl);
+    await UserPreferences.instance.setWaterMlForDate(_selectedDate, _waterMl);
   }
 
   Future<void> setWaterTargetMl(int ml) async {
     _waterTargetMl = ml.clamp(1, 99999);
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('water_target_ml', _waterTargetMl);
+    await UserPreferences.instance.setWaterTargetMl(_waterTargetMl);
   }
 
   Future<void> setVessels(List<WaterVessel> vessels) async {
     _vessels = vessels;
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('water_vessels', jsonEncode(vessels.map((v) => v.toJson()).toList()));
+    await UserPreferences.instance.setVessels(vessels);
   }
 
   Future<void> createRecipeFromMeal(Meal meal, String name) async {
