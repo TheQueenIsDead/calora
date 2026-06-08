@@ -189,10 +189,12 @@ class _FoodDetailScreenState extends State<FoodDetailScreen>
       return;
     }
 
+    final provider = context.read<DiaryProvider>();
+
     await DatabaseService.instance.saveLastUsedGrams(widget.food.id, _grams);
 
     if (widget.existingEntryId != null) {
-      await context.read<DiaryProvider>().updateEntryGrams(widget.existingEntryId!, _grams);
+      await provider.updateEntryGrams(widget.existingEntryId!, _grams);
       if (mounted) Navigator.pop(context);
       return;
     }
@@ -201,10 +203,10 @@ class _FoodDetailScreenState extends State<FoodDetailScreen>
       id: const Uuid().v4(),
       food: widget.food,
       grams: _grams,
-      date: context.read<DiaryProvider>().selectedDate,
+      date: provider.selectedDate,
       meal: _meal,
     );
-    await context.read<DiaryProvider>().addEntry(entry);
+    await provider.addEntry(entry);
     if (mounted) Navigator.popUntil(context, (r) => r.isFirst);
   }
 

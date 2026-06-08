@@ -160,7 +160,7 @@ void main() {
   });
 
   // 500 kcal/100g: grams × 5 = kcal, making boundary arithmetic exact.
-  FoodItem _denseFood() => FoodItem(
+  FoodItem denseFood() => FoodItem(
         id: const Uuid().v4(),
         name: 'Dense Food',
         caloriesPer100g: 500,
@@ -179,7 +179,7 @@ void main() {
 
     final entry = DiaryEntry(
       id: const Uuid().v4(),
-      food: _denseFood(),
+      food: denseFood(),
       grams: 300, // = 1500 kcal: under goal
       date: testDate,
       meal: Meal.breakfast,
@@ -214,7 +214,7 @@ void main() {
 
     final entry = DiaryEntry(
       id: const Uuid().v4(),
-      food: _denseFood(),
+      food: denseFood(),
       grams: 500, // = 2500 kcal: over goal but TDEE unset
       date: testDate,
       meal: Meal.breakfast,
