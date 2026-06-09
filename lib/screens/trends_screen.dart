@@ -2,7 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../providers/diary_provider.dart';
+import '../providers/settings_provider.dart';
 import '../services/database_service.dart';
 import 'weight_screen.dart';
 
@@ -29,7 +29,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
   Future<void> _load() async {
     final to = DateTime.now();
     final from = to.subtract(const Duration(days: _days - 1));
-    final fallback = context.read<DiaryProvider>().currentGoal;
+    final fallback = context.read<SettingsProvider>().currentGoal;
     final results = await Future.wait([
       DatabaseService.instance.getDailyCalories(from, to),
       DatabaseService.instance.getDailyGoals(from, to, fallback),
@@ -48,7 +48,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
   @override
   Widget build(BuildContext context) {
     // Read TDEE live so the chart reacts immediately when the user updates it.
-    final tdee = context.watch<DiaryProvider>().tdee;
+    final tdee = context.watch<SettingsProvider>().tdee;
     return Scaffold(
       appBar: AppBar(title: const Text('Trends')),
       body: _loading

@@ -11,6 +11,7 @@ import 'package:calora/main.dart';
 import 'package:calora/models/diary_entry.dart';
 import 'package:calora/models/food_item.dart';
 import 'package:calora/providers/diary_provider.dart';
+import 'package:calora/providers/settings_provider.dart';
 import 'package:calora/screens/add_food_screen.dart';
 import 'package:calora/screens/food_detail_screen.dart';
 
@@ -25,9 +26,14 @@ void main() {
   });
 
   testWidgets('app renders without crashing', (tester) async {
+    final diary = DiaryProvider();
+    final settings = SettingsProvider(onGoalChanged: diary.refreshCurrentDay);
     await tester.pumpWidget(
-      ChangeNotifierProvider(
-        create: (_) => DiaryProvider(),
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: settings),
+          ChangeNotifierProvider.value(value: diary),
+        ],
         child: const CaloraApp(),
       ),
     );

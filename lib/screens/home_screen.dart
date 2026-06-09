@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../models/diary_entry.dart';
 import '../models/water_vessel.dart';
 import '../providers/diary_provider.dart';
+import '../providers/settings_provider.dart';
 import '../services/database_service.dart';
 import '../widgets/calorie_ring.dart';
 import '../widgets/meal_section.dart';
@@ -33,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
       key: _messengerKey,
       child: Consumer<DiaryProvider>(
         builder: (context, diary, _) {
+          final settings = context.watch<SettingsProvider>();
           return Scaffold(
             backgroundColor: Theme.of(context).colorScheme.surface,
             appBar: AppBar(
@@ -89,9 +91,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           onDateSelected: diary.loadDay,
                         ),
                         const SizedBox(height: 12),
-                        _SummaryCard(diary: diary),
+                        _SummaryCard(diary: diary, tdee: settings.tdee),
                         const SizedBox(height: 12),
-                        _WaterCard(diary: diary, isLocked: diary.isLocked),
+                        _WaterCard(
+                          diary: diary,
+                          isLocked: diary.isLocked,
+                          waterTargetMl: settings.waterTargetMl,
+                          vessels: settings.vessels,
+                        ),
                         const SizedBox(height: 20),
                         for (final meal in Meal.values)
                           MealSection(
@@ -173,6 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (name != null && name.isNotEmpty && mounted) {
       await diary.createRecipeFromMeal(meal, name);
+      if (mounted) context.read<SettingsProvider>().loadRecipes();
       if (mounted) {
         _messengerKey.currentState?.showSnackBar(
           SnackBar(content: Text('Saved "$name" as a recipe')),
@@ -231,18 +239,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _SummaryCard extends StatelessWidget {
   final DiaryProvider diary;
-  const _SummaryCard({required this.diary});
+  final int tdee;
+  const _SummaryCard({required this.diary, required this.tdee});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final remaining = diary.remainingCalories;
     final isOverGoal = remaining < 0;
-    final isOverTdee = diary.tdee > 0 && diary.totalCalories > diary.tdee;
-    final tdeeDeficit = diary.tdee > 0
-        ? diary.tdee - diary.totalCalories
-        : null;
-    final tdeeIsSet = diary.tdee > 0;
+    final isOverTdee = tdee > 0 && diary.totalCalories > tdee;
+    final tdeeDeficit = tdee > 0 ? tdee - diary.totalCalories : null;
+    final tdeeIsSet = tdee > 0;
 
     final Color goalStateColor;
     if (isOverTdee) {
@@ -266,8 +273,8 @@ class _SummaryCard extends StatelessWidget {
               color: isOverTdee
                   ? theme.colorScheme.error
                   : isOverGoal
-                  ? Colors.amber
-                  : null,
+                      ? Colors.amber
+                      : null,
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -332,7 +339,14 @@ class _SummaryCard extends StatelessWidget {
 class _WaterCard extends StatefulWidget {
   final DiaryProvider diary;
   final bool isLocked;
-  const _WaterCard({required this.diary, this.isLocked = false});
+  final int waterTargetMl;
+  final List<WaterVessel> vessels;
+  const _WaterCard({
+    required this.diary,
+    required this.waterTargetMl,
+    required this.vessels,
+    this.isLocked = false,
+  });
 
   @override
   State<_WaterCard> createState() => _WaterCardState();
@@ -355,8 +369,8 @@ class _WaterCardState extends State<_WaterCard> {
     final theme = Theme.of(context);
     final diary = widget.diary;
     final ml = diary.waterMl;
-    final targetMl = diary.waterTargetMl;
-    final vessels = diary.vessels;
+    final targetMl = widget.waterTargetMl;
+    final vessels = widget.vessels;
     final onBg = theme.colorScheme.onSecondaryContainer;
     final chipColor = _subtracting ? theme.colorScheme.error : onBg;
 
@@ -369,7 +383,7 @@ class _WaterCardState extends State<_WaterCard> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             CalorieRing(
-              progress: diary.waterProgress,
+              progress: targetMl > 0 ? (ml / targetMl).clamp(0.0, 1.0) : 0.0,
               size: 72,
               label: _mlLabel(ml),
               color: Colors.lightBlue.shade400,

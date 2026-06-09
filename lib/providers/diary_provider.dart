@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/diary_entry.dart';
-import '../models/water_vessel.dart';
 import '../services/database_service.dart';
 import '../services/user_preferences.dart';
 
@@ -11,31 +10,19 @@ class DiaryProvider extends ChangeNotifier {
   DateTime _selectedDate = DateTime.now();
   final Map<String, Timer> _pendingDeletes = {};
   final Map<String, DiaryEntry> _deletedEntries = {};
-  int _currentGoal = 2000;
   int _dailyGoal = 2000;
-  int _waterTargetMl = 2000;
   bool _loading = false;
   bool _isLocked = false;
   int _waterMl = 0;
-  int _bmr = 0;
-  int _tdee = 0;
-  List<WaterVessel> _vessels = [];
   int _changeToken = 0;
 
   List<DiaryEntry> get entries => _entries;
   DateTime get selectedDate => _selectedDate;
   int get changeToken => _changeToken;
-  int get currentGoal => _currentGoal;
   int get dailyGoal => _dailyGoal;
-  int get waterTargetMl => _waterTargetMl;
   bool get loading => _loading;
   bool get isLocked => _isLocked;
   int get waterMl => _waterMl;
-  int get bmr => _bmr;
-  int get tdee => _tdee;
-  List<WaterVessel> get vessels => _vessels;
-  double get waterProgress =>
-      _waterTargetMl > 0 ? (_waterMl / _waterTargetMl).clamp(0.0, 1.0) : 0.0;
 
   double get totalCalories => _entries.fold(0, (sum, e) => sum + e.calories);
   double get totalFat => _entries.fold(0, (sum, e) => sum + e.fat);
@@ -49,14 +36,10 @@ class DiaryProvider extends ChangeNotifier {
       _entries.where((e) => e.meal == meal).toList();
 
   Future<void> init() async {
-    final prefs = UserPreferences.instance;
-    _currentGoal = await prefs.getDailyGoal();
-    _waterTargetMl = await prefs.getWaterTargetMl();
-    _vessels = await prefs.getVessels();
-    _bmr = await prefs.getBmr();
-    _tdee = await prefs.getTdee();
     await loadDay(_selectedDate);
   }
+
+  Future<void> refreshCurrentDay() => loadDay(_selectedDate);
 
   Future<void> loadDay(DateTime date) async {
     _loading = true;
@@ -65,8 +48,8 @@ class DiaryProvider extends ChangeNotifier {
     _entries = await DatabaseService.instance.getEntriesForDate(date);
     final prefs = UserPreferences.instance;
     _waterMl = await prefs.getWaterMlForDate(date);
-    _dailyGoal =
-        await DatabaseService.instance.getEffectiveGoal(date) ?? _currentGoal;
+    _dailyGoal = await DatabaseService.instance.getEffectiveGoal(date) ??
+        await UserPreferences.instance.getDailyGoal();
     _isLocked = await prefs.getLockState(date);
     _loading = false;
     notifyListeners();
@@ -147,26 +130,6 @@ class DiaryProvider extends ChangeNotifier {
     await loadDay(_selectedDate);
   }
 
-  Future<void> setDailyGoal(int calories) async {
-    _currentGoal = calories;
-    _dailyGoal = calories;
-    notifyListeners();
-    await UserPreferences.instance.setDailyGoal(calories);
-    await DatabaseService.instance.saveGoal(DateTime.now(), calories);
-  }
-
-  Future<void> setBmr(int bmr) async {
-    _bmr = bmr;
-    notifyListeners();
-    await UserPreferences.instance.setBmr(bmr);
-  }
-
-  Future<void> setTdee(int tdee) async {
-    _tdee = tdee;
-    notifyListeners();
-    await UserPreferences.instance.setTdee(tdee);
-  }
-
   Future<void> addWaterMl(int ml) async {
     if (_isLocked) return;
     _waterMl = (_waterMl + ml).clamp(0, 99999);
@@ -179,18 +142,6 @@ class DiaryProvider extends ChangeNotifier {
     _waterMl = (_waterMl - ml).clamp(0, 99999);
     notifyListeners();
     await UserPreferences.instance.setWaterMlForDate(_selectedDate, _waterMl);
-  }
-
-  Future<void> setWaterTargetMl(int ml) async {
-    _waterTargetMl = ml.clamp(1, 99999);
-    notifyListeners();
-    await UserPreferences.instance.setWaterTargetMl(_waterTargetMl);
-  }
-
-  Future<void> setVessels(List<WaterVessel> vessels) async {
-    _vessels = vessels;
-    notifyListeners();
-    await UserPreferences.instance.setVessels(vessels);
   }
 
   Future<void> createRecipeFromMeal(Meal meal, String name) async {

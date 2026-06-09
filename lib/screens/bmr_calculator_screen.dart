@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../providers/diary_provider.dart';
+import '../providers/settings_provider.dart';
 
 enum _Sex { male, female }
 
@@ -107,9 +107,9 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
       await prefs.setInt('bmr_value', roundedBmr);
       await prefs.setInt('tdee_value', roundedTdee);
       if (mounted) {
-        final diary = context.read<DiaryProvider>();
-        diary.setBmr(roundedBmr);
-        diary.setTdee(roundedTdee);
+        final s = context.read<SettingsProvider>();
+        s.setBmr(roundedBmr);
+        s.setTdee(roundedTdee);
       }
     }
   }
@@ -487,7 +487,7 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
   }
 
   Future<void> _setGoal(BuildContext context, int kcal, String label) async {
-    final provider = context.read<DiaryProvider>();
+    final provider = context.read<SettingsProvider>();
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     try {
