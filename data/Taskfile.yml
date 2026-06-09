@@ -45,9 +45,14 @@ tasks:
       - curl -L -o nzfc/concise-14-edition.xlsx
           "https://www.foodcomposition.co.nz/downloads/concise-14-edition.xlsx"
 
-  # USDA Foundation Foods: https://fdc.nal.usda.gov/data-downloads.html
-  # Download FoodData_Central_foundation_food_csv_<date>.zip → extract into usda/foundation/
-  # (URL changes with each release — download manually)
+  usda:
+    desc: "Download and extract USDA Foundation Foods CSV files (~32 MB unzipped)"
+    cmds:
+      - mkdir -p usda/foundation
+      - curl -L -o usda/foundation_food.zip
+          "https://www.usda.gov/fdc-datasets/FoodData_Central_foundation_food_csv_2026-04-30.zip"
+      - unzip -j -o usda/foundation_food.zip -d usda/foundation
+      - rm usda/foundation_food.zip
 
   # ── Build ─────────────────────────────────────────────────────────────────
 
