@@ -27,16 +27,24 @@ tasks:
     cmds:
       - uv run python open-food-facts-nz/filter_nz.py
 
-  # ── Source data downloads (manual — URLs change per release) ─────────────
+  # ── Source data downloads ─────────────────────────────────────────────────
 
-  # AUSNUT 2023: https://www.foodstandards.gov.au → Science → AUSNUT
-  # Download zip → extract → place .xlsx files in ausnut/AUSNUT 2023 - All Files/
+  download-ausnut:
+    desc: "Download and extract AUSNUT 2023 Excel files (~11 MB)"
+    cmds:
+      - mkdir -p "ausnut/AUSNUT 2023 - All Files"
+      - curl -L -o ausnut/AUSNUT2023.zip
+          "https://www.foodstandards.gov.au/sites/default/files/2026-03/AUSNUT%202023%20-%20All%20Files_0.zip"
+      - unzip -o ausnut/AUSNUT2023.zip -d "ausnut/AUSNUT 2023 - All Files"
+      - rm ausnut/AUSNUT2023.zip
 
   # NZ Food Composition 14th Ed: https://www.foodcomposition.co.nz/foodfiles/
   # Download concise-14-edition.xlsx → place in nz-food-composition/
+  # (URL requires a form submission — download manually)
 
   # USDA Foundation Foods: https://fdc.nal.usda.gov/data-downloads.html
   # Download FoodData_Central_foundation_food_csv_<date>.zip → extract into usda/foundation/
+  # (URL changes with each release — download manually)
 
   # ── Build ─────────────────────────────────────────────────────────────────
 
