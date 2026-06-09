@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/TheQueenIsDead/calora/compare/v1.0.0...v1.1.0) (2026-06-09)
+
+
+### Features
+
+* unify ingredient search, fix cross-field search, add Taskfile ([ba77a8a](https://github.com/TheQueenIsDead/calora/commit/ba77a8aed97a8a85def0a2704d49b5afcaa799a3))
+
 ## 1.0.0 (2026-06-08)
 
 
