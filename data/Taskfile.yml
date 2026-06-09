@@ -32,10 +32,10 @@ tasks:
   download-ausnut:
     desc: "Download and extract AUSNUT 2023 Excel files (~11 MB)"
     cmds:
-      - mkdir -p "ausnut/AUSNUT 2023 - All Files"
+      - mkdir -p ausnut
       - curl -L -o ausnut/AUSNUT2023.zip
           "https://www.foodstandards.gov.au/sites/default/files/2026-03/AUSNUT%202023%20-%20All%20Files_0.zip"
-      - unzip -o ausnut/AUSNUT2023.zip -d "ausnut/AUSNUT 2023 - All Files"
+      - unzip -j -o ausnut/AUSNUT2023.zip -d ausnut
       - rm ausnut/AUSNUT2023.zip
 
   # NZ Food Composition 14th Ed: https://www.foodcomposition.co.nz/foodfiles/
