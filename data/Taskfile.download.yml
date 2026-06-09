@@ -1,0 +1,46 @@
+version: '3'
+
+tasks:
+  ausnut:
+    desc: "Download and extract AUSNUT 2023 Excel files (~11 MB)"
+    vars:
+      URL: https://www.foodstandards.gov.au/sites/default/files/2026-03/AUSNUT%202023%20-%20All%20Files_0.zip
+      ARCHIVE: ausnut/AUSNUT2023.zip
+    generates:
+      - "{{.ARCHIVE}}"
+    cmds:
+      - curl -L -o "{{.ARCHIVE}}" "{{.URL}}"
+      - unzip -j -o "{{.ARCHIVE}}" -d ausnut
+
+  nzfc:
+    desc: "Download NZ Food Composition 14th edition Excel file"
+    vars:
+      URL: https://www.foodcomposition.co.nz/downloads/concise-14-edition.xlsx
+    generates:
+      - nzfc/concise-14-edition.xlsx
+    cmds:
+      - mkdir -p nzfc
+      - curl -L -o nzfc/concise-14-edition.xlsx "{{.URL}}"
+
+  off:
+    desc: "Download full Open Food Facts dump (~9 GB compressed)"
+    vars:
+      URL: https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz
+      DUMP: off/en.openfoodfacts.org.products.csv.gz
+    generates:
+      - "{{.DUMP}}"
+    cmds:
+      - mkdir -p off
+      - curl -L --continue-at - -o "{{.DUMP}}" "{{.URL}}"
+
+  usda:
+    desc: "Download and extract USDA Foundation Foods CSV files (~32 MB unzipped)"
+    vars:
+      URL: https://www.usda.gov/fdc-datasets/FoodData_Central_foundation_food_csv_2026-04-30.zip
+      ZIP: usda/foundation_food.zip
+    generates:
+      - "{{.ZIP}}"
+    cmds:
+      - mkdir -p usda/foundation
+      - curl -L -o "{{.ZIP}}" "{{.URL}}"
+      - unzip -j -o "{{.ZIP}}" -d usda/foundation

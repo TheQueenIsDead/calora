@@ -1,73 +1,27 @@
 version: '3'
 
+includes:
+  download: ./Taskfile.download.yml
+  process: ./Taskfile.process.yml
+
 tasks:
   default:
     cmds:
       - task --list
     silent: true
 
-  # ── Source data downloads ─────────────────────────────────────────────────
-
-  ausnut:
-    desc: "Download and extract AUSNUT 2023 Excel files (~11 MB)"
-    generates:
-      - ausnut/AUSNUT 2023 - Food details.xlsx
-    env:
-      URL: https://www.foodstandards.gov.au/sites/default/files/2026-03/AUSNUT%202023%20-%20All%20Files_0.zip
-    cmds:
-      - mkdir -p ausnut
-      - curl -L -o ausnut/AUSNUT2023.zip "$URL"
-      - unzip -j -o ausnut/AUSNUT2023.zip -d ausnut
-      - rm ausnut/AUSNUT2023.zip
-
-  nzfc:
-    desc: "Download NZ Food Composition 14th edition Excel file"
-    generates:
-      - nzfc/concise-14-edition.xlsx
-    env:
-      URL: https://www.foodcomposition.co.nz/downloads/concise-14-edition.xlsx
-    cmds:
-      - mkdir -p nzfc
-      - curl -L -o nzfc/concise-14-edition.xlsx "$URL"
-
-  off:
-    desc: "Download full OFF dump (~9 GB), filter to APAC CSV, delete dump"
-    generates:
-      - off/apac.en.openfoodfacts.org.products.csv
-    env:
-      URL: https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz
-      DUMP: off/en.openfoodfacts.org.products.csv.gz
-    cmds:
-      - mkdir -p off
-      - curl -L --continue-at - -o "$DUMP" "$URL"
-      - uv run python filter.py
-      - rm "$DUMP"
-
-  usda:
-    desc: "Download and extract USDA Foundation Foods CSV files (~32 MB unzipped)"
-    generates:
-      - usda/foundation/food.csv
-    env:
-      URL: https://www.usda.gov/fdc-datasets/FoodData_Central_foundation_food_csv_2026-04-30.zip
-    cmds:
-      - mkdir -p usda/foundation
-      - curl -L -o usda/foundation_food.zip "$URL"
-      - unzip -j -o usda/foundation_food.zip -d usda/foundation
-      - rm usda/foundation_food.zip
-
-  # ── Build ─────────────────────────────────────────────────────────────────
-
   build:
     desc: "Build the seed DB from all sources into ../assets/calora_seed.db"
     cmds:
       - uv run python build.py
 
-
   all:
-    desc: "Full pipeline (download → filter → build DB)"
+    desc: "Full pipeline: download all sources, process, build DB"
+    deps:
+      - download:ausnut
+      - download:nzfc
+      - download:off
+      - download:usda
     cmds:
-      - task: ausnut
-      - task: nzfc
-      - task: off
-      - task: usda
+      - task: process:filter
       - task: build
