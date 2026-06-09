@@ -22,6 +22,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
   bool _loading = true;
 
   int _lastChangeToken = -1;
+  int _loadSeq = 0;
 
   @override
   void initState() {
@@ -41,6 +42,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
   }
 
   Future<void> _load() async {
+    final seq = ++_loadSeq;
     final to = DateTime.now();
     final from = to.subtract(const Duration(days: _days - 1));
     final fallback = context.read<SettingsProvider>().currentGoal;
@@ -49,14 +51,13 @@ class _TrendsScreenState extends State<TrendsScreen> {
       DatabaseService.instance.getDailyGoals(from, to, fallback),
       DatabaseService.instance.getDailyMacros(from, to),
     ]);
-    if (mounted) {
-      setState(() {
-        _dailyCalories = results[0] as Map<String, double>;
-        _dailyGoals = results[1] as Map<String, int>;
-        _dailyMacros = results[2] as Map<String, Map<String, double>>;
-        _loading = false;
-      });
-    }
+    if (!mounted || seq != _loadSeq) return;
+    setState(() {
+      _dailyCalories = results[0] as Map<String, double>;
+      _dailyGoals = results[1] as Map<String, int>;
+      _dailyMacros = results[2] as Map<String, Map<String, double>>;
+      _loading = false;
+    });
   }
 
   @override

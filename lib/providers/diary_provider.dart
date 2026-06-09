@@ -35,16 +35,29 @@ class DiaryProvider extends ChangeNotifier {
   List<DiaryEntry> entriesForMeal(Meal meal) =>
       _entries.where((e) => e.meal == meal).toList();
 
+  bool _wasViewingToday = true;
+
   Future<void> init() async {
     await loadDay(_selectedDate);
   }
 
   Future<void> refreshCurrentDay() => loadDay(_selectedDate);
 
+  /// Called when the app returns to the foreground. If the user was on
+  /// "today" when they backgrounded and the date has since rolled over,
+  /// advances to the new today automatically.
+  Future<void> handleAppResume() async {
+    if (_wasViewingToday) await loadDay(DateTime.now());
+  }
+
   Future<void> loadDay(DateTime date) async {
     _loading = true;
     notifyListeners();
     _selectedDate = date;
+    final now = DateTime.now();
+    _wasViewingToday = date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
     _entries = await DatabaseService.instance.getEntriesForDate(date);
     final prefs = UserPreferences.instance;
     _waterMl = await prefs.getWaterMlForDate(date);
