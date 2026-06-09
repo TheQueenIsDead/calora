@@ -38,14 +38,17 @@ jobs:
         run: flutter pub get
 
       - name: Decode keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/calora.jks
-          cat > android/key.properties <<EOF
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyAlias=calora
-          storeFile=calora.jks
-          EOF
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/calora.jks
+          {
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyPassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=calora"
+            echo "storeFile=calora.jks"
+          } > android/key.properties
 
       - name: Build APK
         run: flutter build apk --release
