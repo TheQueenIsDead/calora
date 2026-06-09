@@ -5,12 +5,16 @@ class CalorieRing extends StatelessWidget {
   final double progress;
   final bool isOver;
   final double size;
+
   /// Override the centre label. Defaults to the percentage string.
   final String? label;
+
   /// Override the ring fill colour. Defaults to primary / error.
   final Color? color;
+
   /// Override the centre text colour. Defaults to onPrimaryContainer.
   final Color? labelColor;
+
   /// Override the ring background colour.
   final Color? backgroundColor;
 
@@ -28,9 +32,10 @@ class CalorieRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final ringColor = color ??
-        (isOver ? theme.colorScheme.error : theme.colorScheme.primary);
-    final bgColor = backgroundColor ??
+    final ringColor =
+        color ?? (isOver ? theme.colorScheme.error : theme.colorScheme.primary);
+    final bgColor =
+        backgroundColor ??
         theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.15);
     final textColor = labelColor ?? theme.colorScheme.onPrimaryContainer;
 
@@ -63,7 +68,11 @@ class _RingPainter extends CustomPainter {
   final Color color;
   final Color backgroundColor;
 
-  _RingPainter({required this.progress, required this.color, required this.backgroundColor});
+  _RingPainter({
+    required this.progress,
+    required this.color,
+    required this.backgroundColor,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -89,5 +98,6 @@ class _RingPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_RingPainter old) => old.progress != progress || old.color != color;
+  bool shouldRepaint(_RingPainter old) =>
+      old.progress != progress || old.color != color;
 }

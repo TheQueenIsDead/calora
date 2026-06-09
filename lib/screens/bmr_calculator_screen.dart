@@ -15,28 +15,28 @@ enum _ActivityLevel {
 
 extension _ActivityLevelExt on _ActivityLevel {
   String get label => switch (this) {
-        _ActivityLevel.sedentary => 'Sedentary',
-        _ActivityLevel.lightlyActive => 'Lightly active',
-        _ActivityLevel.moderatelyActive => 'Moderately active',
-        _ActivityLevel.veryActive => 'Very active',
-        _ActivityLevel.extraActive => 'Extra active',
-      };
+    _ActivityLevel.sedentary => 'Sedentary',
+    _ActivityLevel.lightlyActive => 'Lightly active',
+    _ActivityLevel.moderatelyActive => 'Moderately active',
+    _ActivityLevel.veryActive => 'Very active',
+    _ActivityLevel.extraActive => 'Extra active',
+  };
 
   String get description => switch (this) {
-        _ActivityLevel.sedentary => 'Little or no exercise',
-        _ActivityLevel.lightlyActive => 'Exercise 1–3 days/week',
-        _ActivityLevel.moderatelyActive => 'Exercise 3–5 days/week',
-        _ActivityLevel.veryActive => 'Exercise 6–7 days/week',
-        _ActivityLevel.extraActive => 'Very hard exercise or physical job',
-      };
+    _ActivityLevel.sedentary => 'Little or no exercise',
+    _ActivityLevel.lightlyActive => 'Exercise 1–3 days/week',
+    _ActivityLevel.moderatelyActive => 'Exercise 3–5 days/week',
+    _ActivityLevel.veryActive => 'Exercise 6–7 days/week',
+    _ActivityLevel.extraActive => 'Very hard exercise or physical job',
+  };
 
   double get multiplier => switch (this) {
-        _ActivityLevel.sedentary => 1.2,
-        _ActivityLevel.lightlyActive => 1.375,
-        _ActivityLevel.moderatelyActive => 1.55,
-        _ActivityLevel.veryActive => 1.725,
-        _ActivityLevel.extraActive => 1.9,
-      };
+    _ActivityLevel.sedentary => 1.2,
+    _ActivityLevel.lightlyActive => 1.375,
+    _ActivityLevel.moderatelyActive => 1.55,
+    _ActivityLevel.veryActive => 1.725,
+    _ActivityLevel.extraActive => 1.9,
+  };
 }
 
 class BmrCalculatorScreen extends StatefulWidget {
@@ -76,11 +76,16 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
       final weight = prefs.getDouble('bmr_weight');
       if (age != null) _ageCtrl.text = age.toString();
       if (height != null) _heightCtrl.text = height.toString();
-      if (weight != null) _weightCtrl.text = weight % 1 == 0 ? weight.toInt().toString() : weight.toString();
+      if (weight != null) {
+        _weightCtrl.text = weight % 1 == 0
+            ? weight.toInt().toString()
+            : weight.toString();
+      }
       final sexIdx = prefs.getInt('bmr_sex') ?? 0;
       _sex = _Sex.values[sexIdx.clamp(0, _Sex.values.length - 1)];
       final actIdx = prefs.getInt('bmr_activity') ?? 2;
-      _activity = _ActivityLevel.values[actIdx.clamp(0, _ActivityLevel.values.length - 1)];
+      _activity = _ActivityLevel
+          .values[actIdx.clamp(0, _ActivityLevel.values.length - 1)];
     });
     await _savePrefs();
   }
@@ -113,11 +118,19 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
     final age = int.tryParse(_ageCtrl.text);
     final heightCm = int.tryParse(_heightCtrl.text);
     final weightKg = double.tryParse(_weightCtrl.text);
-    if (age == null || heightCm == null || weightKg == null) return (bmi: null, bmr: null, tdee: null);
-    if (age <= 0 || heightCm <= 0 || weightKg <= 0) return (bmi: null, bmr: null, tdee: null);
+    if (age == null || heightCm == null || weightKg == null) {
+      return (bmi: null, bmr: null, tdee: null);
+    }
+    if (age <= 0 || heightCm <= 0 || weightKg <= 0) {
+      return (bmi: null, bmr: null, tdee: null);
+    }
 
     // Mifflin St. Jeor
-    final bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + (_sex == _Sex.male ? 5 : -161);
+    final bmr =
+        10 * weightKg +
+        6.25 * heightCm -
+        5 * age +
+        (_sex == _Sex.male ? 5 : -161);
     final tdee = bmr * _activity.multiplier;
     final heightM = heightCm / 100;
     final bmi = weightKg / (heightM * heightM);
@@ -167,7 +180,10 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
                       SegmentedButton<_Sex>(
                         segments: const [
                           ButtonSegment(value: _Sex.male, label: Text('Male')),
-                          ButtonSegment(value: _Sex.female, label: Text('Female')),
+                          ButtonSegment(
+                            value: _Sex.female,
+                            label: Text('Female'),
+                          ),
                         ],
                         selected: {_sex},
                         onSelectionChanged: (s) {
@@ -217,7 +233,9 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
                       Expanded(
                         child: TextField(
                           controller: _weightCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                           decoration: const InputDecoration(
                             labelText: 'Weight',
                             suffix: Text('kg'),
@@ -254,16 +272,20 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
                       _savePrefs();
                     },
                     child: Column(
-                      children: _ActivityLevel.values.map((level) =>
-                        RadioListTile<_ActivityLevel>(
-                          value: level,
-                          title: Text(level.label),
-                          subtitle: Text(level.description,
-                              style: theme.textTheme.bodySmall),
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                        ),
-                      ).toList(),
+                      children: _ActivityLevel.values
+                          .map(
+                            (level) => RadioListTile<_ActivityLevel>(
+                              value: level,
+                              title: Text(level.label),
+                              subtitle: Text(
+                                level.description,
+                                style: theme.textTheme.bodySmall,
+                              ),
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          )
+                          .toList(),
                     ),
                   ),
                 ],
@@ -314,29 +336,64 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
                     const SizedBox(height: 16),
                     _BmiScale(bmi: result.bmi!),
                     const SizedBox(height: 4),
-                    Row(children: [
-                      Expanded(flex: _BmiScale.flexUnder,  child: Text('Under',  style: theme.textTheme.labelSmall, textAlign: TextAlign.center)),
-                      Expanded(flex: _BmiScale.flexNormal, child: Text('Normal', style: theme.textTheme.labelSmall, textAlign: TextAlign.center)),
-                      Expanded(flex: _BmiScale.flexOver,   child: Text('Over',   style: theme.textTheme.labelSmall, textAlign: TextAlign.center)),
-                      Expanded(flex: _BmiScale.flexObese,  child: Text('Obese',  style: theme.textTheme.labelSmall, textAlign: TextAlign.center)),
-                    ]),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: _BmiScale.flexUnder,
+                          child: Text(
+                            'Under',
+                            style: theme.textTheme.labelSmall,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        Expanded(
+                          flex: _BmiScale.flexNormal,
+                          child: Text(
+                            'Normal',
+                            style: theme.textTheme.labelSmall,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        Expanded(
+                          flex: _BmiScale.flexOver,
+                          child: Text(
+                            'Over',
+                            style: theme.textTheme.labelSmall,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        Expanded(
+                          flex: _BmiScale.flexObese,
+                          child: Text(
+                            'Obese',
+                            style: theme.textTheme.labelSmall,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 8),
-                    Builder(builder: (_) {
-                      final heightM = (int.tryParse(_heightCtrl.text) ?? 0) / 100.0;
-                      if (heightM <= 0) return const SizedBox.shrink();
-                      final targetKg = 21.75 * heightM * heightM;
-                      return Text(
-                        'Mid-normal weight for your height: ${targetKg.toStringAsFixed(1)} kg',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant),
-                      );
-                    }),
+                    Builder(
+                      builder: (_) {
+                        final heightM =
+                            (int.tryParse(_heightCtrl.text) ?? 0) / 100.0;
+                        if (heightM <= 0) return const SizedBox.shrink();
+                        final targetKg = 21.75 * heightM * heightM;
+                        return Text(
+                          'Mid-normal weight for your height: ${targetKg.toStringAsFixed(1)} kg',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        );
+                      },
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       'To lose ~0.5 kg/week subtract ~500 kcal from TDEE.\n'
                       'To gain ~0.5 kg/week add ~500 kcal.',
                       style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant),
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -349,12 +406,15 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
                               'Cut',
                             ),
                             style: FilledButton.styleFrom(
-                                minimumSize: const Size.fromHeight(52)),
+                              minimumSize: const Size.fromHeight(52),
+                            ),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Text('Cut',
-                                    style: TextStyle(fontWeight: FontWeight.w600)),
+                                const Text(
+                                  'Cut',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
                                 Text(
                                   '${(result.tdee! - 500).toStringAsFixed(0)} kcal',
                                   style: Theme.of(context).textTheme.labelSmall,
@@ -372,12 +432,15 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
                               'Maintain',
                             ),
                             style: FilledButton.styleFrom(
-                                minimumSize: const Size.fromHeight(52)),
+                              minimumSize: const Size.fromHeight(52),
+                            ),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Text('Maintain',
-                                    style: TextStyle(fontWeight: FontWeight.w600)),
+                                const Text(
+                                  'Maintain',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
                                 Text(
                                   '${result.tdee!.toStringAsFixed(0)} kcal',
                                   style: Theme.of(context).textTheme.labelSmall,
@@ -398,8 +461,9 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Text(
                   'Fill in your age, height, and weight to see your BMR and TDEE.',
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ),
@@ -410,8 +474,9 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
             child: Text(
               'BMR calculated using the Mifflin–St Jeor equation. '
               'TDEE = BMR × activity multiplier.',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -445,22 +510,22 @@ class _BmiScale extends StatelessWidget {
 
   static const _min = 15.0;
   static const _max = 40.0;
-  static const _underEnd  = 18.5;
+  static const _underEnd = 18.5;
   static const _normalEnd = 25.0;
-  static const _overEnd   = 30.0;
+  static const _overEnd = 30.0;
 
-  static const _underColor  = Color(0xFF64B5F6);
+  static const _underColor = Color(0xFF64B5F6);
   static const _normalColor = Color(0xFF66BB6A);
-  static const _overColor   = Color(0xFFFFA726);
-  static const _obeseColor  = Color(0xFFEF5350);
+  static const _overColor = Color(0xFFFFA726);
+  static const _obeseColor = Color(0xFFEF5350);
 
   static int _flexOf(double start, double end) =>
       ((end - start) / (_max - _min) * 100).round();
 
-  static final flexUnder  = _flexOf(_min, _underEnd);
+  static final flexUnder = _flexOf(_min, _underEnd);
   static final flexNormal = _flexOf(_underEnd, _normalEnd);
-  static final flexOver   = _flexOf(_normalEnd, _overEnd);
-  static final flexObese  = _flexOf(_overEnd, _max);
+  static final flexOver = _flexOf(_normalEnd, _overEnd);
+  static final flexObese = _flexOf(_overEnd, _max);
 
   int _flex(double start, double end) => _flexOf(start, end);
 
@@ -471,74 +536,107 @@ class _BmiScale extends StatelessWidget {
 
     const boundaries = [_min, _underEnd, _normalEnd, _overEnd, _max];
     const barH = 28.0;
-    const lw   = 34.0;
+    const lw = 34.0;
 
     final numStyle = theme.textTheme.labelSmall?.copyWith(
       color: Colors.white.withValues(alpha: 0.9),
       fontWeight: FontWeight.w600,
     );
 
-    return LayoutBuilder(builder: (context, constraints) {
-      final w = constraints.maxWidth;
-      double xOf(double v) => ((v - _min) / (_max - _min)).clamp(0.0, 1.0) * w;
-      final markerX = (t * w).clamp(1.5, w - 1.5);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        double xOf(double v) =>
+            ((v - _min) / (_max - _min)).clamp(0.0, 1.0) * w;
+        final markerX = (t * w).clamp(1.5, w - 1.5);
 
-      return Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // ── Coloured sections ───────────────────────────────────────────
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: Row(children: [
-              Expanded(flex: _flex(_min, _underEnd),      child: SizedBox(height: barH, child: const ColoredBox(color: _underColor))),
-              Expanded(flex: _flex(_underEnd, _normalEnd), child: SizedBox(height: barH, child: const ColoredBox(color: _normalColor))),
-              Expanded(flex: _flex(_normalEnd, _overEnd),  child: SizedBox(height: barH, child: const ColoredBox(color: _overColor))),
-              Expanded(flex: _flex(_overEnd, _max),        child: SizedBox(height: barH, child: const ColoredBox(color: _obeseColor))),
-            ]),
-          ),
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // ── Coloured sections ───────────────────────────────────────────
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: _flex(_min, _underEnd),
+                    child: SizedBox(
+                      height: barH,
+                      child: const ColoredBox(color: _underColor),
+                    ),
+                  ),
+                  Expanded(
+                    flex: _flex(_underEnd, _normalEnd),
+                    child: SizedBox(
+                      height: barH,
+                      child: const ColoredBox(color: _normalColor),
+                    ),
+                  ),
+                  Expanded(
+                    flex: _flex(_normalEnd, _overEnd),
+                    child: SizedBox(
+                      height: barH,
+                      child: const ColoredBox(color: _overColor),
+                    ),
+                  ),
+                  Expanded(
+                    flex: _flex(_overEnd, _max),
+                    child: SizedBox(
+                      height: barH,
+                      child: const ColoredBox(color: _obeseColor),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
-          // ── Boundary numbers inside the bar ─────────────────────────────
-          for (int i = 0; i < boundaries.length; i++)
-            Positioned(
-              left:   i == boundaries.length - 1 ? null : (i == 0 ? 2 : xOf(boundaries[i]) - lw / 2),
-              right:  i == boundaries.length - 1 ? 2    : null,
-              top: 0,
-              bottom: 0,
-              child: Center(
-                child: SizedBox(
-                  width: lw,
-                  child: Text(
-                    boundaries[i] == boundaries[i].truncateToDouble()
-                        ? boundaries[i].toStringAsFixed(0)
-                        : boundaries[i].toStringAsFixed(1),
-                    style: numStyle,
-                    textAlign: i == 0
-                        ? TextAlign.left
-                        : i == boundaries.length - 1
-                            ? TextAlign.right
-                            : TextAlign.center,
+            // ── Boundary numbers inside the bar ─────────────────────────────
+            for (int i = 0; i < boundaries.length; i++)
+              Positioned(
+                left: i == boundaries.length - 1
+                    ? null
+                    : (i == 0 ? 2 : xOf(boundaries[i]) - lw / 2),
+                right: i == boundaries.length - 1 ? 2 : null,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: SizedBox(
+                    width: lw,
+                    child: Text(
+                      boundaries[i] == boundaries[i].truncateToDouble()
+                          ? boundaries[i].toStringAsFixed(0)
+                          : boundaries[i].toStringAsFixed(1),
+                      style: numStyle,
+                      textAlign: i == 0
+                          ? TextAlign.left
+                          : i == boundaries.length - 1
+                          ? TextAlign.right
+                          : TextAlign.center,
+                    ),
                   ),
                 ),
               ),
-            ),
 
-          // ── Marker line ─────────────────────────────────────────────────
-          Positioned(
-            left: markerX - 1.5,
-            top: 0,
-            bottom: 0,
-            child: Container(
-              width: 3,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(2),
-                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
+            // ── Marker line ─────────────────────────────────────────────────
+            Positioned(
+              left: markerX - 1.5,
+              top: 0,
+              bottom: 0,
+              child: Container(
+                width: 3,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(2),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black26, blurRadius: 2),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      );
-    });
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -561,13 +659,20 @@ class _ResultTile extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant)),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
         const SizedBox(height: 2),
-        Text(value,
-            style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold, color: valueColor)),
+        Text(
+          value,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: valueColor,
+          ),
+        ),
         Text(sub, style: theme.textTheme.bodySmall),
       ],
     );

@@ -27,53 +27,59 @@ class WaterVessel {
   IconData get icon {
     if (isSvgIcon) return Icons.local_drink;
     return availableIcons
-            .where((i) => !i.isSvg)
-            .map((i) => i.iconData!)
-            .firstWhere(
-              (d) => d.codePoint == iconCodePoint,
-              orElse: () => Icons.local_drink,
-            );
+        .where((i) => !i.isSvg)
+        .map((i) => i.iconData!)
+        .firstWhere(
+          (d) => d.codePoint == iconCodePoint,
+          orElse: () => Icons.local_drink,
+        );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'ml': ml,
-        'icon': iconCodePoint,
-        if (svgAsset != null) 'svg_asset': svgAsset,
-      };
+    'id': id,
+    'name': name,
+    'ml': ml,
+    'icon': iconCodePoint,
+    if (svgAsset != null) 'svg_asset': svgAsset,
+  };
 
   factory WaterVessel.fromJson(Map<String, dynamic> json) => WaterVessel(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        ml: json['ml'] as int,
-        iconCodePoint: json['icon'] as int,
-        svgAsset: json['svg_asset'] as String?,
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    ml: json['ml'] as int,
+    iconCodePoint: json['icon'] as int,
+    svgAsset: json['svg_asset'] as String?,
+  );
 
   static List<WaterVessel> get defaults => [
-        WaterVessel(
-            id: 'default_glass',
-            name: 'Glass',
-            ml: 250,
-            iconCodePoint: Icons.local_drink.codePoint),
-        WaterVessel(
-            id: 'default_mug',
-            name: 'Mug',
-            ml: 350,
-            iconCodePoint: Icons.free_breakfast.codePoint),
-        WaterVessel(
-            id: 'default_bottle',
-            name: 'Bottle',
-            ml: 500,
-            iconCodePoint: kSvgIconCodePoint,
-            svgAsset: 'assets/icons/water_bottle.svg'),
-      ];
+    WaterVessel(
+      id: 'default_glass',
+      name: 'Glass',
+      ml: 250,
+      iconCodePoint: Icons.local_drink.codePoint,
+    ),
+    WaterVessel(
+      id: 'default_mug',
+      name: 'Mug',
+      ml: 350,
+      iconCodePoint: Icons.free_breakfast.codePoint,
+    ),
+    WaterVessel(
+      id: 'default_bottle',
+      name: 'Bottle',
+      ml: 500,
+      iconCodePoint: kSvgIconCodePoint,
+      svgAsset: 'assets/icons/water_bottle.svg',
+    ),
+  ];
 
   // Ordered list of icon options shown in the vessel editor.
   static const List<VesselIconOption> availableIcons = [
     // SVG (Material Symbols)
-    VesselIconOption.svg('assets/icons/water_bottle.svg', label: 'Water bottle'),
+    VesselIconOption.svg(
+      'assets/icons/water_bottle.svg',
+      label: 'Water bottle',
+    ),
     // Cups & mugs
     VesselIconOption.material(Icons.local_drink, label: 'Cup / tumbler'),
     VesselIconOption.material(Icons.takeout_dining, label: 'Lidded cup'),
@@ -102,12 +108,12 @@ class VesselIconOption {
   final String label;
 
   const VesselIconOption.material(IconData icon, {required this.label})
-      : iconData = icon,
-        svgPath = null;
+    : iconData = icon,
+      svgPath = null;
 
   const VesselIconOption.svg(String path, {required this.label})
-      : svgPath = path,
-        iconData = null;
+    : svgPath = path,
+      iconData = null;
 
   bool get isSvg => svgPath != null;
 

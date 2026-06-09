@@ -53,11 +53,7 @@ class _RootScaffold extends StatefulWidget {
 class _RootScaffoldState extends State<_RootScaffold> {
   int _index = 0;
 
-  static const _screens = [
-    HomeScreen(),
-    TrendsScreen(),
-    SettingsScreen(),
-  ];
+  static const _screens = [HomeScreen(), TrendsScreen(), SettingsScreen()];
 
   @override
   Widget build(BuildContext context) {

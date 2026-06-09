@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/diary_entry.dart';
 import '../models/food_item.dart';
 import '../services/database_service.dart';
+import 'add_food_screen.dart';
 import 'food_detail_screen.dart';
 
 class RecipesScreen extends StatefulWidget {
@@ -32,7 +33,10 @@ class _RecipesScreenState extends State<RecipesScreen> {
     if (!mounted) return;
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => RecipeDetailScreen(recipeId: id, recipeName: name.trim())),
+      MaterialPageRoute(
+        builder: (_) =>
+            RecipeDetailScreen(recipeId: id, recipeName: name.trim()),
+      ),
     );
     _load();
   }
@@ -51,15 +55,21 @@ class _RecipesScreenState extends State<RecipesScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.menu_book_outlined,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.outlineVariant),
+                  Icon(
+                    Icons.menu_book_outlined,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
                   const SizedBox(height: 12),
-                  Text('No recipes yet',
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    'No recipes yet',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const SizedBox(height: 4),
-                  Text('Tap + to create your first recipe',
-                      style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                    'Tap + to create your first recipe',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ],
               ),
             )
@@ -68,10 +78,13 @@ class _RecipesScreenState extends State<RecipesScreen> {
               itemBuilder: (context, i) {
                 final r = _recipes[i];
                 final kcal = (r['total_kcal'] as num?)?.toDouble() ?? 0;
-                final kcalStr = kcal > 0 ? '${kcal.toStringAsFixed(0)} kcal' : null;
+                final kcalStr = kcal > 0
+                    ? '${kcal.toStringAsFixed(0)} kcal'
+                    : null;
                 final description = r['description'] as String?;
                 final subtitleParts = [
-                  if (description != null && description.isNotEmpty) description,
+                  if (description != null && description.isNotEmpty)
+                    description,
                   ?kcalStr,
                 ];
                 return ListTile(
@@ -112,7 +125,10 @@ class _RecipesScreenState extends State<RecipesScreen> {
           textCapitalization: TextCapitalization.sentences,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, controller.text),
             child: const Text('Create'),
@@ -128,7 +144,11 @@ class _RecipesScreenState extends State<RecipesScreen> {
 class RecipeDetailScreen extends StatefulWidget {
   final String recipeId;
   final String recipeName;
-  const RecipeDetailScreen({super.key, required this.recipeId, required this.recipeName});
+  const RecipeDetailScreen({
+    super.key,
+    required this.recipeId,
+    required this.recipeName,
+  });
 
   @override
   State<RecipeDetailScreen> createState() => _RecipeDetailScreenState();
@@ -147,7 +167,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Future<void> _load() async {
-    final items = await DatabaseService.instance.getRecipeItems(widget.recipeId);
+    final items = await DatabaseService.instance.getRecipeItems(
+      widget.recipeId,
+    );
     final recipes = await DatabaseService.instance.getRecipes();
     final recipe = recipes.firstWhere(
       (r) => r['id'] == widget.recipeId,
@@ -162,41 +184,55 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   double get _totalCalories => _items.fold(
-      0, (s, i) => s + (i['grams'] as num) * (i['calories_per_100g'] as num) / 100);
+    0,
+    (s, i) => s + (i['grams'] as num) * (i['calories_per_100g'] as num) / 100,
+  );
   double get _totalProtein => _items.fold(
-      0, (s, i) => s + (i['grams'] as num) * (i['protein_per_100g'] as num) / 100);
+    0,
+    (s, i) => s + (i['grams'] as num) * (i['protein_per_100g'] as num) / 100,
+  );
   double get _totalFat => _items.fold(
-      0, (s, i) => s + (i['grams'] as num) * (i['fat_per_100g'] as num) / 100);
+    0,
+    (s, i) => s + (i['grams'] as num) * (i['fat_per_100g'] as num) / 100,
+  );
   double get _totalCarbs => _items.fold(
-      0, (s, i) => s + (i['grams'] as num) * (i['carbs_per_100g'] as num) / 100);
+    0,
+    (s, i) => s + (i['grams'] as num) * (i['carbs_per_100g'] as num) / 100,
+  );
 
   static String _sourceLabel(String source) => switch (source) {
-        'ausnut' => 'AUSNUT 2023',
-        'nz' => 'NZ Food Comp.',
-        'usda' => 'USDA',
-        'off_nz' || 'off' => 'Open Food Facts',
-        'custom' => 'Custom',
-        _ => source,
-      };
+    'ausnut' => 'AUSNUT 2023',
+    'nz' => 'NZ Food Comp.',
+    'usda' => 'USDA',
+    'off_nz' || 'off' => 'Open Food Facts',
+    'custom' => 'Custom',
+    _ => source,
+  };
 
   Future<void> _addIngredient() async {
-    final result = await Navigator.push<({FoodItem food, double grams})>(
+    await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const _IngredientPickerScreen()),
+      MaterialPageRoute(
+        builder: (_) => AddFoodScreen(
+          defaultMeal: Meal.breakfast,
+          onIngredientAdded: (food, grams) async {
+            await DatabaseService.instance.saveFood(food);
+            await DatabaseService.instance.addRecipeItem(
+              widget.recipeId,
+              food.id,
+              grams,
+            );
+            _load();
+          },
+        ),
+      ),
     );
-    if (result == null || !mounted) return;
-    await DatabaseService.instance.saveFood(result.food);
-    await DatabaseService.instance.addRecipeItem(
-      widget.recipeId,
-      result.food.id,
-      result.grams,
-    );
-    _load();
   }
 
   Future<void> _editItem(Map<String, dynamic> item) async {
-    final food = await DatabaseService.instance
-        .getFoodById(item['food_id'] as String);
+    final food = await DatabaseService.instance.getFoodById(
+      item['food_id'] as String,
+    );
     if (food == null || !mounted) return;
 
     double? newGrams;
@@ -207,13 +243,17 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           food: food,
           defaultMeal: Meal.breakfast,
           initialGrams: (item['grams'] as num).toDouble(),
-          onAdd: (grams) async { newGrams = grams; },
+          onAdd: (grams) async {
+            newGrams = grams;
+          },
         ),
       ),
     );
     if (newGrams != null && mounted) {
       await DatabaseService.instance.updateRecipeItemGrams(
-          item['id'] as String, newGrams!);
+        item['id'] as String,
+        newGrams!,
+      );
       _load();
     }
   }
@@ -228,14 +268,18 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete recipe?'),
-        content: Text('This will permanently delete "$_name" and all its ingredients.'),
+        content: Text(
+          'This will permanently delete "$_name" and all its ingredients.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete'),
           ),
@@ -261,7 +305,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () {
               final v = int.tryParse(controller.text);
@@ -273,7 +319,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       ),
     );
     if (result == null || !mounted) return;
-    await DatabaseService.instance.updateRecipeServings(widget.recipeId, result);
+    await DatabaseService.instance.updateRecipeServings(
+      widget.recipeId,
+      result,
+    );
     setState(() => _servings = result);
   }
 
@@ -290,7 +339,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           textCapitalization: TextCapitalization.sentences,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
             child: const Text('Rename'),
@@ -298,7 +350,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         ],
       ),
     );
-    if (newName == null || newName.isEmpty || newName == _name || !mounted) return;
+    if (newName == null || newName.isEmpty || newName == _name || !mounted) {
+      return;
+    }
     await DatabaseService.instance.renameRecipe(widget.recipeId, newName);
     setState(() => _name = newName);
   }
@@ -321,8 +375,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             onPressed: _rename,
           ),
           IconButton(
-            icon: Icon(Icons.delete_outline,
-                color: Theme.of(context).colorScheme.error),
+            icon: Icon(
+              Icons.delete_outline,
+              color: Theme.of(context).colorScheme.error,
+            ),
             tooltip: 'Delete recipe',
             onPressed: _deleteRecipe,
           ),
@@ -346,17 +402,21 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         _MacroChip(
-                            '${(_totalCalories / _servings).toStringAsFixed(0)} kcal',
-                            'Calories'),
+                          '${(_totalCalories / _servings).toStringAsFixed(0)} kcal',
+                          'Calories',
+                        ),
                         _MacroChip(
-                            '${(_totalProtein / _servings).toStringAsFixed(1)}g',
-                            'Protein'),
+                          '${(_totalProtein / _servings).toStringAsFixed(1)}g',
+                          'Protein',
+                        ),
                         _MacroChip(
-                            '${(_totalFat / _servings).toStringAsFixed(1)}g',
-                            'Fat'),
+                          '${(_totalFat / _servings).toStringAsFixed(1)}g',
+                          'Fat',
+                        ),
                         _MacroChip(
-                            '${(_totalCarbs / _servings).toStringAsFixed(1)}g',
-                            'Carbs'),
+                          '${(_totalCarbs / _servings).toStringAsFixed(1)}g',
+                          'Carbs',
+                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -367,14 +427,17 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                         children: [
                           Text(
                             '$_servings serving${_servings == 1 ? '' : 's'} · per serving',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
                                   color: Theme.of(context).colorScheme.primary,
                                 ),
                           ),
                           const SizedBox(width: 4),
-                          Icon(Icons.edit_outlined,
-                              size: 12,
-                              color: Theme.of(context).colorScheme.primary),
+                          Icon(
+                            Icons.edit_outlined,
+                            size: 12,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                         ],
                       ),
                     ),
@@ -385,16 +448,24 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           Expanded(
             child: _items.isEmpty
                 ? Center(
-                    child: Text('No ingredients yet',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5))))
+                    child: Text(
+                      'No ingredients yet',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.5,
+                        ),
+                      ),
+                    ),
+                  )
                 : ListView.builder(
                     padding: const EdgeInsets.only(top: 8, bottom: 80),
                     itemCount: _items.length,
                     itemBuilder: (context, i) {
                       final item = _items[i];
-                      final kcal = (item['grams'] as num) *
-                          (item['calories_per_100g'] as num) / 100;
+                      final kcal =
+                          (item['grams'] as num) *
+                          (item['calories_per_100g'] as num) /
+                          100;
                       return Dismissible(
                         key: Key(item['id'] as String),
                         direction: DismissDirection.endToStart,
@@ -402,12 +473,16 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                           color: theme.colorScheme.errorContainer,
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.only(right: 20),
-                          child: Icon(Icons.delete_outline,
-                              color: theme.colorScheme.onErrorContainer),
+                          child: Icon(
+                            Icons.delete_outline,
+                            color: theme.colorScheme.onErrorContainer,
+                          ),
                         ),
                         onDismissed: (_) => _deleteItem(item['id'] as String),
                         child: ListTile(
-                          title: Text(FoodItem.formatName(item['name'] as String)),
+                          title: Text(
+                            FoodItem.formatName(item['name'] as String),
+                          ),
                           subtitle: Text(
                             '${(item['grams'] as num).toStringAsFixed(0)} g'
                             '  ·  ${_sourceLabel(item['source'] as String? ?? '')}',
@@ -438,102 +513,14 @@ class _MacroChip extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(value,
-            style: Theme.of(context)
-                .textTheme
-                .titleSmall
-                ?.copyWith(fontWeight: FontWeight.bold)),
+        Text(
+          value,
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+        ),
         Text(label, style: Theme.of(context).textTheme.labelSmall),
       ],
-    );
-  }
-}
-
-// ── Lightweight ingredient picker (search only, returns food + grams) ─────────
-
-class _IngredientPickerScreen extends StatefulWidget {
-  const _IngredientPickerScreen();
-
-  @override
-  State<_IngredientPickerScreen> createState() => _IngredientPickerScreenState();
-}
-
-class _IngredientPickerScreenState extends State<_IngredientPickerScreen> {
-  final _searchCtrl = TextEditingController();
-  List<FoodItem> _results = [];
-  bool _searching = false;
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _search(String query) async {
-    if (query.trim().isEmpty) {
-      setState(() { _results = []; _searching = false; });
-      return;
-    }
-    setState(() => _searching = true);
-    final results = await DatabaseService.instance.searchFoods(query.trim());
-    if (mounted) setState(() { _results = results; _searching = false; });
-  }
-
-  Future<void> _pick(FoodItem food) async {
-    double? chosenGrams;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => FoodDetailScreen(
-          food: food,
-          defaultMeal: Meal.breakfast,
-          onAdd: (grams) async {
-            chosenGrams = grams;
-          },
-        ),
-      ),
-    );
-    if (chosenGrams != null && mounted) {
-      Navigator.pop(context, (food: food, grams: chosenGrams!));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Add ingredient')),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: SearchBar(
-              controller: _searchCtrl,
-              hintText: 'Search foods…',
-              leading: const Icon(Icons.search),
-              onChanged: _search,
-              onSubmitted: _search,
-            ),
-          ),
-          if (_searching)
-            const Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())
-          else
-            Expanded(
-              child: ListView.builder(
-                itemCount: _results.length,
-                itemBuilder: (context, i) {
-                  final food = _results[i];
-                  return ListTile(
-                    title: Text(food.formattedName),
-                    subtitle: food.brand != null ? Text(food.brand!) : null,
-                    trailing: Text('${food.caloriesPer100g.toStringAsFixed(0)} kcal/100g',
-                        style: Theme.of(context).textTheme.bodySmall),
-                    onTap: () => _pick(food),
-                  );
-                },
-              ),
-            ),
-        ],
-      ),
     );
   }
 }

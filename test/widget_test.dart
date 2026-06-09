@@ -49,7 +49,9 @@ void main() {
     expect(find.text('Search foods…'), findsOneWidget);
   });
 
-  testWidgets('AddFoodScreen shows loading indicator while searching', (tester) async {
+  testWidgets('AddFoodScreen shows loading indicator while searching', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
         value: DiaryProvider(),
@@ -70,7 +72,9 @@ void main() {
   // Passing initialGrams avoids the async getLastUsedGrams DB call in initState,
   // keeping these tests compatible with Flutter's fake-async clock.
 
-  testWidgets('FoodDetailScreen shows Save Changes button in edit mode', (tester) async {
+  testWidgets('FoodDetailScreen shows Save Changes button in edit mode', (
+    tester,
+  ) async {
     final food = FoodItem(
       id: 'test_edit_food',
       name: 'Chicken Breast',
@@ -95,7 +99,9 @@ void main() {
     expect(find.text('Add to Recipe'), findsNothing);
   });
 
-  testWidgets('FoodDetailScreen shows Add to Diary button in normal add mode', (tester) async {
+  testWidgets('FoodDetailScreen shows Add to Diary button in normal add mode', (
+    tester,
+  ) async {
     final food = FoodItem(
       id: 'test_add_food',
       name: 'Brown Rice',
@@ -119,28 +125,31 @@ void main() {
     expect(find.text('Add to Recipe'), findsNothing);
   });
 
-  testWidgets('FoodDetailScreen shows Add to Recipe button in recipe ingredient mode', (tester) async {
-    final food = FoodItem(
-      id: 'test_recipe_food',
-      name: 'Olive Oil',
-      caloriesPer100g: 884,
-      source: 'test',
-    );
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData(useMaterial3: true),
-        home: FoodDetailScreen(
-          food: food,
-          defaultMeal: Meal.dinner,
-          initialGrams: 15,
-          onAdd: (grams) async {},
+  testWidgets(
+    'FoodDetailScreen shows Add to Recipe button in recipe ingredient mode',
+    (tester) async {
+      final food = FoodItem(
+        id: 'test_recipe_food',
+        name: 'Olive Oil',
+        caloriesPer100g: 884,
+        source: 'test',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: true),
+          home: FoodDetailScreen(
+            food: food,
+            defaultMeal: Meal.dinner,
+            initialGrams: 15,
+            onAdd: (grams) async {},
+          ),
         ),
-      ),
-    );
-    await tester.pump();
+      );
+      await tester.pump();
 
-    expect(find.text('Add to Recipe'), findsOneWidget);
-    expect(find.text('Add to Diary'), findsNothing);
-    expect(find.text('Save Changes'), findsNothing);
-  });
+      expect(find.text('Add to Recipe'), findsOneWidget);
+      expect(find.text('Add to Diary'), findsNothing);
+      expect(find.text('Save Changes'), findsNothing);
+    },
+  );
 }

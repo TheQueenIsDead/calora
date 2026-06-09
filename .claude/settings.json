@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "task ci",
+            "if": "Bash(git commit*)",
+            "timeout": 120,
+            "statusMessage": "Running task ci…"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -54,7 +54,9 @@ class UserPreferences {
   Future<void> setWaterMlForDate(DateTime date, int ml) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(
-        'water_ml_${date.toIso8601String().substring(0, 10)}', ml);
+      'water_ml_${date.toIso8601String().substring(0, 10)}',
+      ml,
+    );
   }
 
   // ── Vessels ───────────────────────────────────────────────────────────────
@@ -72,7 +74,9 @@ class UserPreferences {
   Future<void> setVessels(List<WaterVessel> vessels) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
-        'water_vessels', jsonEncode(vessels.map((v) => v.toJson()).toList()));
+      'water_vessels',
+      jsonEncode(vessels.map((v) => v.toJson()).toList()),
+    );
   }
 
   // ── BMR / TDEE ────────────────────────────────────────────────────────────
@@ -103,8 +107,11 @@ class UserPreferences {
     final prefs = await SharedPreferences.getInstance();
     final dateStr = date.toIso8601String().substring(0, 10);
     final now = DateTime.now();
-    final todayStr =
-        DateTime(now.year, now.month, now.day).toIso8601String().substring(0, 10);
+    final todayStr = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).toIso8601String().substring(0, 10);
     final isPast = dateStr.compareTo(todayStr) < 0;
     return prefs.getBool('locked_$dateStr') ?? isPast;
   }
@@ -113,8 +120,11 @@ class UserPreferences {
     final prefs = await SharedPreferences.getInstance();
     final dateStr = date.toIso8601String().substring(0, 10);
     final now = DateTime.now();
-    final todayStr =
-        DateTime(now.year, now.month, now.day).toIso8601String().substring(0, 10);
+    final todayStr = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).toIso8601String().substring(0, 10);
     final naturalDefault = dateStr.compareTo(todayStr) < 0;
     if (locked == naturalDefault) {
       await prefs.remove('locked_$dateStr');

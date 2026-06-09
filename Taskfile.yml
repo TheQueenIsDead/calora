@@ -1,0 +1,42 @@
+version: '3'
+
+tasks:
+  default:
+    cmds:
+      - task --list
+    silent: true
+
+  analyze:
+    desc: Run flutter analyze (includes dart analyze + lint)
+    cmds:
+      - flutter analyze
+
+  test:
+    desc: Run all tests
+    cmds:
+      - flutter test --no-pub
+
+  test:coverage:
+    desc: Run tests with coverage report
+    cmds:
+      - flutter test --no-pub --coverage
+      - genhtml coverage/lcov.info -o coverage/html
+      - open coverage/html/index.html
+
+  format:
+    desc: Format all Dart source files
+    cmds:
+      - dart format lib/ test/
+      - dart fix --apply
+
+  format:check:
+    desc: Check formatting without modifying files
+    cmds:
+      - dart format --output=none --set-exit-if-changed lib/ test/
+
+  ci:
+    desc: Full pre-commit check — format, analyze, test
+    cmds:
+      - task: format:check
+      - task: analyze
+      - task: test

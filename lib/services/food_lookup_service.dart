@@ -15,8 +15,12 @@ class FoodLookupService {
 
     // Fetch from Open Food Facts
     try {
-      final uri = Uri.parse('$_offApiBase/product/$barcode?fields=code,product_name,brands,serving_size,nutriments,image_front_url');
-      final resp = await http.get(uri, headers: {'User-Agent': _userAgent}).timeout(const Duration(seconds: 10));
+      final uri = Uri.parse(
+        '$_offApiBase/product/$barcode?fields=code,product_name,brands,serving_size,nutriments,image_front_url',
+      );
+      final resp = await http
+          .get(uri, headers: {'User-Agent': _userAgent})
+          .timeout(const Duration(seconds: 10));
       if (resp.statusCode != 200) return null;
 
       final data = jsonDecode(resp.body) as Map<String, dynamic>;

@@ -69,8 +69,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     onPressed: _isToday(diary.selectedDate)
                         ? null
                         : () => diary.loadDay(
-                              diary.selectedDate.add(const Duration(days: 1)),
-                            ),
+                            diary.selectedDate.add(const Duration(days: 1)),
+                          ),
                   ),
                 ],
               ),
@@ -160,7 +160,10 @@ class _HomeScreenState extends State<HomeScreen> {
           textCapitalization: TextCapitalization.sentences,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
             child: const Text('Save'),
@@ -211,7 +214,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool _isToday(DateTime date) {
     final now = DateTime.now();
-    return date.year == now.year && date.month == now.month && date.day == now.day;
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 
   String _formatDate(DateTime date) {
@@ -234,7 +239,9 @@ class _SummaryCard extends StatelessWidget {
     final remaining = diary.remainingCalories;
     final isOverGoal = remaining < 0;
     final isOverTdee = diary.tdee > 0 && diary.totalCalories > diary.tdee;
-    final tdeeDeficit = diary.tdee > 0 ? diary.tdee - diary.totalCalories : null;
+    final tdeeDeficit = diary.tdee > 0
+        ? diary.tdee - diary.totalCalories
+        : null;
     final tdeeIsSet = diary.tdee > 0;
 
     final Color goalStateColor;
@@ -259,8 +266,8 @@ class _SummaryCard extends StatelessWidget {
               color: isOverTdee
                   ? theme.colorScheme.error
                   : isOverGoal
-                      ? Colors.amber
-                      : null,
+                  ? Colors.amber
+                  : null,
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -275,8 +282,8 @@ class _SummaryCard extends StatelessWidget {
                           label: isOverTdee
                               ? 'Over TDEE'
                               : isOverGoal
-                                  ? 'Over goal'
-                                  : 'Remaining',
+                              ? 'Over goal'
+                              : 'Remaining',
                           value: '${remaining.abs().toStringAsFixed(0)} kcal',
                           valueColor: goalStateColor,
                           labelColor: theme.colorScheme.onPrimaryContainer
@@ -286,17 +293,20 @@ class _SummaryCard extends StatelessWidget {
                       Expanded(
                         child: _StatBlock(
                           label: tdeeIsSet
-                              ? (tdeeDeficit! > 0 ? 'TDEE deficit' : 'Above TDEE')
+                              ? (tdeeDeficit! > 0
+                                    ? 'TDEE deficit'
+                                    : 'Above TDEE')
                               : 'TDEE deficit',
                           value: tdeeIsSet
                               ? '${tdeeDeficit!.abs().toStringAsFixed(0)} kcal'
                               : '—',
                           valueColor: tdeeIsSet
                               ? (tdeeDeficit! > 0
-                                  ? Colors.lightGreen.shade300
-                                  : theme.colorScheme.error)
-                              : theme.colorScheme.onPrimaryContainer
-                                  .withValues(alpha: 0.35),
+                                    ? Colors.lightGreen.shade300
+                                    : theme.colorScheme.error)
+                              : theme.colorScheme.onPrimaryContainer.withValues(
+                                  alpha: 0.35,
+                                ),
                           labelColor: theme.colorScheme.onPrimaryContainer
                               .withValues(alpha: 0.7),
                         ),
@@ -385,77 +395,81 @@ class _WaterCardState extends State<_WaterCard> {
                       const SizedBox(width: 4),
                       Text(
                         'Water',
-                        style: theme.textTheme.labelSmall
-                            ?.copyWith(color: onBg.withValues(alpha: 0.7)),
-                      ),
-                      const Spacer(),
-                      if (!widget.isLocked) GestureDetector(
-                        onTap: () => setState(() => _subtracting = !_subtracting),
-                        child: SizedBox(
-                          width: 56,
-                          height: 26,
-                          child: Stack(
-                            children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: onBg.withValues(alpha: 0.10),
-                                  borderRadius: BorderRadius.circular(13),
-                                ),
-                              ),
-                              AnimatedAlign(
-                                duration: const Duration(milliseconds: 150),
-                                curve: Curves.easeInOut,
-                                alignment: _subtracting
-                                    ? Alignment.centerLeft
-                                    : Alignment.centerRight,
-                                child: Container(
-                                  width: 28,
-                                  height: 22,
-                                  margin: const EdgeInsets.all(2),
-                                  decoration: BoxDecoration(
-                                    color: _subtracting
-                                        ? theme.colorScheme.error
-                                        : Colors.lightBlue.shade400,
-                                    borderRadius: BorderRadius.circular(11),
-                                  ),
-                                ),
-                              ),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Center(
-                                      child: Icon(
-                                        Icons.remove,
-                                        size: 14,
-                                        color: _subtracting
-                                            ? Colors.white
-                                            : onBg.withValues(alpha: 0.45),
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Center(
-                                      child: Icon(
-                                        Icons.add,
-                                        size: 14,
-                                        color: !_subtracting
-                                            ? Colors.white
-                                            : onBg.withValues(alpha: 0.45),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: onBg.withValues(alpha: 0.7),
                         ),
                       ),
+                      const Spacer(),
+                      if (!widget.isLocked)
+                        GestureDetector(
+                          onTap: () =>
+                              setState(() => _subtracting = !_subtracting),
+                          child: SizedBox(
+                            width: 56,
+                            height: 26,
+                            child: Stack(
+                              children: [
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: onBg.withValues(alpha: 0.10),
+                                    borderRadius: BorderRadius.circular(13),
+                                  ),
+                                ),
+                                AnimatedAlign(
+                                  duration: const Duration(milliseconds: 150),
+                                  curve: Curves.easeInOut,
+                                  alignment: _subtracting
+                                      ? Alignment.centerLeft
+                                      : Alignment.centerRight,
+                                  child: Container(
+                                    width: 28,
+                                    height: 22,
+                                    margin: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      color: _subtracting
+                                          ? theme.colorScheme.error
+                                          : Colors.lightBlue.shade400,
+                                      borderRadius: BorderRadius.circular(11),
+                                    ),
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Center(
+                                        child: Icon(
+                                          Icons.remove,
+                                          size: 14,
+                                          color: _subtracting
+                                              ? Colors.white
+                                              : onBg.withValues(alpha: 0.45),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Center(
+                                        child: Icon(
+                                          Icons.add,
+                                          size: 14,
+                                          color: !_subtracting
+                                              ? Colors.white
+                                              : onBg.withValues(alpha: 0.45),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                   Text(
                     'Target  $targetMl ml',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: onBg.withValues(alpha: 0.65)),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: onBg.withValues(alpha: 0.65),
+                    ),
                   ),
                   if (!widget.isLocked && vessels.isNotEmpty) ...[
                     const SizedBox(height: 8),
@@ -463,13 +477,15 @@ class _WaterCardState extends State<_WaterCard> {
                       spacing: 6,
                       runSpacing: 4,
                       children: vessels
-                          .map((v) => _VesselChip(
-                                vessel: v,
-                                onTap: () => _subtracting
-                                    ? diary.removeWaterMl(v.ml)
-                                    : diary.addWaterMl(v.ml),
-                                color: chipColor,
-                              ))
+                          .map(
+                            (v) => _VesselChip(
+                              vessel: v,
+                              onTap: () => _subtracting
+                                  ? diary.removeWaterMl(v.ml)
+                                  : diary.addWaterMl(v.ml),
+                              color: chipColor,
+                            ),
+                          )
                           .toList(),
                     ),
                   ],
@@ -521,7 +537,9 @@ class _VesselChip extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               vessel.ml >= 1000 ? '${vessel.ml ~/ 1000}L' : '${vessel.ml}ml',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
+              style: Theme.of(
+                context,
+              ).textTheme.labelSmall?.copyWith(color: color),
             ),
           ],
         ),
@@ -566,7 +584,11 @@ class _WeekStripState extends State<_WeekStrip> {
 
   DateTime _weekStart(DateTime d) {
     final weekday = d.weekday; // 1=Mon … 7=Sun
-    return DateTime(d.year, d.month, d.day).subtract(Duration(days: weekday - 1));
+    return DateTime(
+      d.year,
+      d.month,
+      d.day,
+    ).subtract(Duration(days: weekday - 1));
   }
 
   Future<void> _load() async {
@@ -598,7 +620,9 @@ class _WeekStripState extends State<_WeekStrip> {
             final isSelected = dateStr == selectedStr;
             final isToday = dateStr == todayStr;
             final hasData = (_weekCalories[dateStr] ?? 0) > 0;
-            final isFuture = date.isAfter(DateTime(today.year, today.month, today.day));
+            final isFuture = date.isAfter(
+              DateTime(today.year, today.month, today.day),
+            );
 
             return GestureDetector(
               onTap: isFuture ? null : () => widget.onDateSelected(date),
@@ -610,27 +634,28 @@ class _WeekStripState extends State<_WeekStrip> {
                   color: isSelected
                       ? theme.colorScheme.primary
                       : hasData
-                          ? theme.colorScheme.primary.withValues(alpha: 0.15)
-                          : null,
+                      ? theme.colorScheme.primary.withValues(alpha: 0.15)
+                      : null,
                   border: isToday && !isSelected
-                      ? Border.all(
-                          color: theme.colorScheme.primary, width: 1.5)
+                      ? Border.all(color: theme.colorScheme.primary, width: 1.5)
                       : null,
                 ),
                 child: Center(
                   child: Text(
                     dayLetters[i],
                     style: theme.textTheme.labelSmall?.copyWith(
-                      fontWeight:
-                          (isSelected || isToday) ? FontWeight.bold : null,
+                      fontWeight: (isSelected || isToday)
+                          ? FontWeight.bold
+                          : null,
                       color: isSelected
                           ? theme.colorScheme.onPrimary
                           : (hasData || isToday)
-                              ? theme.colorScheme.primary
-                              : isFuture
-                                  ? theme.colorScheme.onSurfaceVariant
-                                      .withValues(alpha: 0.35)
-                                  : theme.colorScheme.onSurfaceVariant,
+                          ? theme.colorScheme.primary
+                          : isFuture
+                          ? theme.colorScheme.onSurfaceVariant.withValues(
+                              alpha: 0.35,
+                            )
+                          : theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -682,7 +707,11 @@ class _MacroBar extends StatelessWidget {
   final double carbs;
   final double protein;
   final double fat;
-  const _MacroBar({required this.carbs, required this.protein, required this.fat});
+  const _MacroBar({
+    required this.carbs,
+    required this.protein,
+    required this.fat,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -698,23 +727,26 @@ class _MacroBar extends StatelessWidget {
           child: SizedBox(
             height: 8,
             child: total > 0
-                ? Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    if (carbs > 0)
-                      Expanded(
-                        flex: (carbs / total * 1000).round(),
-                        child: const ColoredBox(color: Colors.blue),
-                      ),
-                    if (protein > 0)
-                      Expanded(
-                        flex: (protein / total * 1000).round(),
-                        child: const ColoredBox(color: Colors.orange),
-                      ),
-                    if (fat > 0)
-                      Expanded(
-                        flex: (fat / total * 1000).round(),
-                        child: const ColoredBox(color: Colors.purple),
-                      ),
-                  ])
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (carbs > 0)
+                        Expanded(
+                          flex: (carbs / total * 1000).round(),
+                          child: const ColoredBox(color: Colors.blue),
+                        ),
+                      if (protein > 0)
+                        Expanded(
+                          flex: (protein / total * 1000).round(),
+                          child: const ColoredBox(color: Colors.orange),
+                        ),
+                      if (fat > 0)
+                        Expanded(
+                          flex: (fat / total * 1000).round(),
+                          child: const ColoredBox(color: Colors.purple),
+                        ),
+                    ],
+                  )
                 : ColoredBox(color: onBg.withValues(alpha: 0.12)),
           ),
         ),
@@ -731,12 +763,21 @@ class _MacroBar extends StatelessWidget {
     );
   }
 
-  Widget _macroLabel(BuildContext context, String label, double value, Color color) {
+  Widget _macroLabel(
+    BuildContext context,
+    String label,
+    double value,
+    Color color,
+  ) {
     final theme = Theme.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
         const SizedBox(width: 3),
         Text(
           '${value.toStringAsFixed(0)}g $label',

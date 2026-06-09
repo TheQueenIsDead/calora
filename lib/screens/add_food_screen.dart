@@ -9,7 +9,15 @@ import 'food_detail_screen.dart';
 
 class AddFoodScreen extends StatefulWidget {
   final Meal defaultMeal;
-  const AddFoodScreen({super.key, required this.defaultMeal});
+
+  /// When provided, the screen acts as an ingredient picker: it hides
+  /// meal-specific sections and pops after the callback completes.
+  final Future<void> Function(FoodItem food, double grams)? onIngredientAdded;
+  const AddFoodScreen({
+    super.key,
+    required this.defaultMeal,
+    this.onIngredientAdded,
+  });
 
   @override
   State<AddFoodScreen> createState() => _AddFoodScreenState();
@@ -28,11 +36,11 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
 
   // The meal that preceded the current one in the day's natural flow.
   Meal get _previousMeal => switch (widget.defaultMeal) {
-        Meal.lunch => Meal.breakfast,
-        Meal.dinner => Meal.lunch,
-        Meal.snack => Meal.dinner,
-        Meal.breakfast => Meal.snack,
-      };
+    Meal.lunch => Meal.breakfast,
+    Meal.dinner => Meal.lunch,
+    Meal.snack => Meal.dinner,
+    Meal.breakfast => Meal.snack,
+  };
 
   @override
   void initState() {
@@ -51,12 +59,20 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
     final today = DateTime.now();
     final results = await Future.wait([
       DatabaseService.instance.getRecipesAsFood(),
-      DatabaseService.instance.getRecentFoods(previousMeal: _previousMeal, date: today),
-      DatabaseService.instance.getLastMealFoods(meal: widget.defaultMeal, date: today),
+      DatabaseService.instance.getRecentFoods(
+        previousMeal: _previousMeal,
+        date: today,
+      ),
+      DatabaseService.instance.getLastMealFoods(
+        meal: widget.defaultMeal,
+        date: today,
+      ),
     ]);
     // Foods already logged in today's current meal — omit from suggestion strips
     // so items the user has already added don't clutter the "Previous X" section.
-    final todayEntries = await DatabaseService.instance.getEntriesForDate(today);
+    final todayEntries = await DatabaseService.instance.getEntriesForDate(
+      today,
+    );
     final alreadyLoggedIds = todayEntries
         .where((e) => e.meal == widget.defaultMeal)
         .map((e) => e.food.id)
@@ -66,9 +82,13 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
       setState(() {
         _recipeResults = results[0];
         // Exclude foods already shown in the Previous [Meal] strip.
-        _recentFoods = results[1].where((f) => !prevIds.contains(f.id)).toList();
+        _recentFoods = results[1]
+            .where((f) => !prevIds.contains(f.id))
+            .toList();
         // Exclude foods already logged in today's meal from the suggestion strip.
-        _previousMealFoods = results[2].where((f) => !alreadyLoggedIds.contains(f.id)).toList();
+        _previousMealFoods = results[2]
+            .where((f) => !alreadyLoggedIds.contains(f.id))
+            .toList();
       });
     }
   }
@@ -76,11 +96,22 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
   void _onSearchChanged(String query) {
     _debounce?.cancel();
     if (query.trim().isEmpty) {
-      if (mounted) setState(() { _foodResults = []; _searching = false; _error = null; });
+      if (mounted) {
+        setState(() {
+          _foodResults = [];
+          _searching = false;
+          _error = null;
+        });
+      }
       _loadIdleState();
       return;
     }
-    if (mounted) setState(() { _searching = true; _error = null; });
+    if (mounted) {
+      setState(() {
+        _searching = true;
+        _error = null;
+      });
+    }
     _debounce = Timer(const Duration(milliseconds: 600), () => _search(query));
   }
 
@@ -88,17 +119,23 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
     try {
       final results = await Future.wait([
         _lookup.search(query.trim()),
-        DatabaseService.instance.getRecipesAsFood(query.trim()),
+        if (widget.onIngredientAdded == null)
+          DatabaseService.instance.getRecipesAsFood(query.trim()),
       ]);
       if (mounted) {
         setState(() {
           _foodResults = results[0];
-          _recipeResults = results[1];
+          _recipeResults = results.length > 1 ? results[1] : [];
           _searching = false;
         });
       }
     } catch (e) {
-      if (mounted) setState(() { _error = 'Search failed. Check your connection.'; _searching = false; });
+      if (mounted) {
+        setState(() {
+          _error = 'Search failed. Check your connection.';
+          _searching = false;
+        });
+      }
     }
   }
 
@@ -109,14 +146,18 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
     );
     if (barcode == null || !mounted) return;
 
-    setState(() { _searching = true; _error = null; });
+    setState(() {
+      _searching = true;
+      _error = null;
+    });
     final food = await _lookup.lookupBarcode(barcode);
     if (!mounted) return;
 
     if (food == null) {
       setState(() {
         _searching = false;
-        _error = 'Product not found for barcode $barcode. Try searching by name.';
+        _error =
+            'Product not found for barcode $barcode. Try searching by name.';
       });
       return;
     }
@@ -125,12 +166,34 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
   }
 
   void _openDetail(FoodItem food) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => FoodDetailScreen(food: food, defaultMeal: widget.defaultMeal),
-      ),
-    );
+    if (widget.onIngredientAdded != null) {
+      double? chosenGrams;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => FoodDetailScreen(
+            food: food,
+            defaultMeal: widget.defaultMeal,
+            onAdd: (grams) async {
+              chosenGrams = grams;
+            },
+          ),
+        ),
+      ).then((_) async {
+        if (chosenGrams != null && mounted) {
+          await widget.onIngredientAdded!(food, chosenGrams!);
+          if (mounted) Navigator.pop(context);
+        }
+      });
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              FoodDetailScreen(food: food, defaultMeal: widget.defaultMeal),
+        ),
+      );
+    }
   }
 
   bool get _hasResults => _foodResults.isNotEmpty || _recipeResults.isNotEmpty;
@@ -142,7 +205,9 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Food'),
+        title: Text(
+          widget.onIngredientAdded != null ? 'Add ingredient' : 'Add Food',
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.qr_code_scanner),
@@ -171,7 +236,10 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
           else if (_error != null)
             Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+              child: Text(
+                _error!,
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
             )
           else if (!_hasResults && _isSearching)
             const Padding(
@@ -182,8 +250,10 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
             Expanded(
               child: ListView(
                 children: [
-                  // ── Previous meal strip (idle state only) ────────────────
-                  if (!_isSearching && _previousMealFoods.isNotEmpty) ...[
+                  // ── Previous meal strip (idle state, meal-add mode only) ─
+                  if (!_isSearching &&
+                      _previousMealFoods.isNotEmpty &&
+                      widget.onIngredientAdded == null) ...[
                     _SectionHeader(
                       icon: Icons.restaurant_menu,
                       label: 'Previous ${widget.defaultMeal.label}',
@@ -226,7 +296,9 @@ class _AddFoodScreenState extends State<AddFoodScreen> {
                         leading: const Icon(Icons.menu_book_outlined),
                         title: Text(food.formattedName),
                         subtitle: food.servingGrams != null
-                            ? Text('${food.servingGrams!.toStringAsFixed(0)} g total')
+                            ? Text(
+                                '${food.servingGrams!.toStringAsFixed(0)} g total',
+                              )
                             : const Text('No ingredients yet'),
                         trailing: food.caloriesPer100g > 0
                             ? Text(
@@ -277,8 +349,9 @@ class _SectionHeader extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: theme.textTheme.labelMedium
-                ?.copyWith(color: theme.colorScheme.primary),
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.primary,
+            ),
           ),
         ],
       ),
