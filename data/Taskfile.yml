@@ -45,9 +45,9 @@ tasks:
     generates:
       - usda/foundation_food.zip
     cmds:
-      - mkdir -p usda/foundation
+      - mkdir -p usda
       - curl -L -o usda/foundation_food.zip "{{.URL}}"
-      - unzip -j -o usda/foundation_food.zip -d usda/foundation
+      - unzip -j -o usda/foundation_food.zip -d usda
 
   # ── Process ───────────────────────────────────────────────────────────────
 
