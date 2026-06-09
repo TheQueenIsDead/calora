@@ -203,8 +203,8 @@ def import_nz_composition(conn: sqlite3.Connection) -> int:
 # Open Food Facts NZ (filtered CSV with barcodes)
 # ---------------------------------------------------------------------------
 
-def import_off_nz(conn: sqlite3.Connection) -> int:
-    path = ROOT / "open-food-facts-nz" / "nz_products.csv"
+def import_off_apac(conn: sqlite3.Connection) -> int:
+    path = ROOT / "off" / "apac.en.openfoodfacts.org.products.csv"
     count = 0
     csv.field_size_limit(sys.maxsize)
 
@@ -365,7 +365,7 @@ def main() -> None:
     print(f"{n:,} rows")
 
     print("Importing Open Food Facts NZ …", end=" ", flush=True)
-    n = import_off_nz(conn)
+    n = import_off_apac(conn)
     conn.commit()
     print(f"{n:,} rows")
 

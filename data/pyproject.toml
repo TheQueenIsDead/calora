@@ -5,6 +5,7 @@ description = "Builds the bundled SQLite food database for the Calora Flutter ap
 requires-python = ">=3.13"
 dependencies = [
     "openpyxl>=3.1",   # read AUSNUT and NZ Food Composition .xlsx files
+    "duckdb>=1.0",     # fast filtered reads of the full OFF CSV dump
 ]
 
 [project.scripts]

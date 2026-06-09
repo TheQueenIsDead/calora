@@ -1,35 +1,17 @@
 version: '3'
 
-# Run from the data/ directory: task <name>
-# Requires: uv (https://docs.astral.sh/uv/), curl, gzip
-
 tasks:
   default:
     cmds:
       - task --list
     silent: true
 
-  # ── Fetch NZ OFF data (choose one approach) ──────────────────────────────
-
-  fetch-off-nz:
-    desc: "Fetch NZ products from Open Food Facts API (~14k products, slower)"
-    cmds:
-      - uv run python open-food-facts-nz/fetch_nz_products.py
-
-  off:
-    desc: "Download full OFF dump, filter to NZ/AU CSVs, then delete the dump (~9 GB download)"
-    env:
-      URL: https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz
-      DUMP: open-food-facts-nz/en.openfoodfacts.org.products.csv.gz
-    cmds:
-      - curl -L --continue-at - -o "$DUMP" "$URL"
-      - uv run python open-food-facts-nz/filter_nz.py
-      - rm "$DUMP"
-
   # ── Source data downloads ─────────────────────────────────────────────────
 
   ausnut:
     desc: "Download and extract AUSNUT 2023 Excel files (~11 MB)"
+    generates:
+      - ausnut/AUSNUT 2023 - Food details.xlsx
     env:
       URL: https://www.foodstandards.gov.au/sites/default/files/2026-03/AUSNUT%202023%20-%20All%20Files_0.zip
     cmds:
@@ -40,14 +22,31 @@ tasks:
 
   nzfc:
     desc: "Download NZ Food Composition 14th edition Excel file"
+    generates:
+      - nzfc/concise-14-edition.xlsx
     env:
       URL: https://www.foodcomposition.co.nz/downloads/concise-14-edition.xlsx
     cmds:
       - mkdir -p nzfc
       - curl -L -o nzfc/concise-14-edition.xlsx "$URL"
 
+  off:
+    desc: "Download full OFF dump (~9 GB), filter to APAC CSV, delete dump"
+    generates:
+      - off/apac.en.openfoodfacts.org.products.csv
+    env:
+      URL: https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz
+      DUMP: off/en.openfoodfacts.org.products.csv.gz
+    cmds:
+      - mkdir -p off
+      - curl -L --continue-at - -o "$DUMP" "$URL"
+      - uv run python filter.py
+      - rm "$DUMP"
+
   usda:
     desc: "Download and extract USDA Foundation Foods CSV files (~32 MB unzipped)"
+    generates:
+      - usda/foundation/food.csv
     env:
       URL: https://www.usda.gov/fdc-datasets/FoodData_Central_foundation_food_csv_2026-04-30.zip
     cmds:
@@ -61,18 +60,14 @@ tasks:
   build:
     desc: "Build the seed DB from all sources into ../assets/calora_seed.db"
     cmds:
-      - uv run python build_db.py
+      - uv run python build.py
 
-  # ── Full pipelines ────────────────────────────────────────────────────────
 
   all:
-    desc: "Full pipeline using OFF API (fetch NZ products → build DB)"
+    desc: "Full pipeline (download → filter → build DB)"
     cmds:
-      - task: fetch-off-nz
-      - task: build
-
-  all-from-dump:
-    desc: "Full pipeline using OFF full dump (download → filter → build DB)"
-    cmds:
+      - task: ausnut
+      - task: nzfc
       - task: off
+      - task: usda
       - task: build
