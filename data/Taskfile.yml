@@ -1,0 +1,61 @@
+version: '3'
+
+# Run from the data/ directory: task <name>
+# Requires: uv (https://docs.astral.sh/uv/), curl, gzip
+
+tasks:
+  default:
+    cmds:
+      - task --list
+    silent: true
+
+  # ── Fetch NZ OFF data (choose one approach) ──────────────────────────────
+
+  fetch-off-nz:
+    desc: "Fetch NZ products from Open Food Facts API (~14k products, slower)"
+    cmds:
+      - uv run python open-food-facts-nz/fetch_nz_products.py
+
+  download-off-dump:
+    desc: "Download the full Open Food Facts CSV dump (~9 GB compressed)"
+    cmds:
+      - curl -L --continue-at - -o open-food-facts-nz/en.openfoodfacts.org.products.csv.gz
+          https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz
+
+  filter-off-nz:
+    desc: "Extract NZ and AU products from the full OFF dump (run after download-off-dump)"
+    cmds:
+      - uv run python open-food-facts-nz/filter_nz.py
+
+  # ── Source data downloads (manual — URLs change per release) ─────────────
+
+  # AUSNUT 2023: https://www.foodstandards.gov.au → Science → AUSNUT
+  # Download zip → extract → place .xlsx files in ausnut/AUSNUT 2023 - All Files/
+
+  # NZ Food Composition 14th Ed: https://www.foodcomposition.co.nz/foodfiles/
+  # Download concise-14-edition.xlsx → place in nz-food-composition/
+
+  # USDA Foundation Foods: https://fdc.nal.usda.gov/data-downloads.html
+  # Download FoodData_Central_foundation_food_csv_<date>.zip → extract into usda/foundation/
+
+  # ── Build ─────────────────────────────────────────────────────────────────
+
+  build:
+    desc: "Build the seed DB from all sources into ../assets/calora_seed.db"
+    cmds:
+      - uv run python build_db.py
+
+  # ── Full pipelines ────────────────────────────────────────────────────────
+
+  all:
+    desc: "Full pipeline using OFF API (fetch NZ products → build DB)"
+    cmds:
+      - task: fetch-off-nz
+      - task: build
+
+  all-from-dump:
+    desc: "Full pipeline using OFF full dump (download → filter → build DB)"
+    cmds:
+      - task: download-off-dump
+      - task: filter-off-nz
+      - task: build

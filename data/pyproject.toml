@@ -1,0 +1,11 @@
+[project]
+name = "calora-data"
+version = "0.1.0"
+description = "Builds the bundled SQLite food database for the Calora Flutter app"
+requires-python = ">=3.13"
+dependencies = [
+    "openpyxl>=3.1",   # read AUSNUT and NZ Food Composition .xlsx files
+]
+
+[project.scripts]
+build-db = "build_db:main"
