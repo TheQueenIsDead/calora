@@ -18,9 +18,10 @@ tasks:
 
   download-off-dump:
     desc: "Download the full Open Food Facts CSV dump (~9 GB compressed)"
+    env:
+      URL: https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz
     cmds:
-      - curl -L --continue-at - -o open-food-facts-nz/en.openfoodfacts.org.products.csv.gz
-          https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz
+      - curl -L --continue-at - -o open-food-facts-nz/en.openfoodfacts.org.products.csv.gz "$URL"
 
   filter-off-nz:
     desc: "Extract NZ and AU products from the full OFF dump (run after download-off-dump)"
@@ -31,26 +32,29 @@ tasks:
 
   ausnut:
     desc: "Download and extract AUSNUT 2023 Excel files (~11 MB)"
+    env:
+      URL: https://www.foodstandards.gov.au/sites/default/files/2026-03/AUSNUT%202023%20-%20All%20Files_0.zip
     cmds:
       - mkdir -p ausnut
-      - curl -L -o ausnut/AUSNUT2023.zip
-          "https://www.foodstandards.gov.au/sites/default/files/2026-03/AUSNUT%202023%20-%20All%20Files_0.zip"
+      - curl -L -o ausnut/AUSNUT2023.zip "$URL"
       - unzip -j -o ausnut/AUSNUT2023.zip -d ausnut
       - rm ausnut/AUSNUT2023.zip
 
   nzfc:
     desc: "Download NZ Food Composition 14th edition Excel file"
+    env:
+      URL: https://www.foodcomposition.co.nz/downloads/concise-14-edition.xlsx
     cmds:
       - mkdir -p nzfc
-      - curl -L -o nzfc/concise-14-edition.xlsx
-          "https://www.foodcomposition.co.nz/downloads/concise-14-edition.xlsx"
+      - curl -L -o nzfc/concise-14-edition.xlsx "$URL"
 
   usda:
     desc: "Download and extract USDA Foundation Foods CSV files (~32 MB unzipped)"
+    env:
+      URL: https://www.usda.gov/fdc-datasets/FoodData_Central_foundation_food_csv_2026-04-30.zip
     cmds:
       - mkdir -p usda/foundation
-      - curl -L -o usda/foundation_food.zip
-          "https://www.usda.gov/fdc-datasets/FoodData_Central_foundation_food_csv_2026-04-30.zip"
+      - curl -L -o usda/foundation_food.zip "$URL"
       - unzip -j -o usda/foundation_food.zip -d usda/foundation
       - rm usda/foundation_food.zip
 
