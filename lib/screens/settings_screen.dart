@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/diary_provider.dart';
 import '../services/database_service.dart';
+import '../services/export_service.dart';
 import 'bmr_calculator_screen.dart';
 import 'recipes_screen.dart';
 import 'water_vessels_screen.dart';
@@ -15,6 +16,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   List<Map<String, dynamic>> _recipes = [];
+  bool _exportImportBusy = false;
 
   @override
   void initState() {
@@ -188,10 +190,83 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _loadRecipes();
                 },
               ),
+          const Divider(),
+          const _SectionHeader('Data'),
+          ListTile(
+            leading: const Icon(Icons.upload_outlined),
+            title: const Text('Export data'),
+            subtitle: const Text('Save a backup you can restore later'),
+            onTap: _exportImportBusy ? null : _export,
+          ),
+          ListTile(
+            leading: const Icon(Icons.download_outlined),
+            title: const Text('Import data'),
+            subtitle: const Text('Restore from a backup file'),
+            onTap: _exportImportBusy ? null : _import,
+          ),
           const SizedBox(height: 80),
         ],
       ),
     );
+  }
+
+  Future<void> _export() async {
+    setState(() => _exportImportBusy = true);
+    try {
+      await ExportService().export();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exportImportBusy = false);
+    }
+  }
+
+  Future<void> _import() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restore backup?'),
+        content: const Text(
+          'This will replace all current diary entries, recipes, and settings with the backup. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    setState(() => _exportImportBusy = true);
+    try {
+      final restored = await ExportService().import();
+      if (restored && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Backup restored. Please restart the app.'),
+            duration: Duration(seconds: 6),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Import failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exportImportBusy = false);
+    }
   }
 
   Future<void> _editInt(

@@ -1086,4 +1086,55 @@ class DatabaseService {
       return [];
     }
   }
+
+  // ── Export / Import ───────────────────────────────────────────────────────
+
+  Future<Map<String, List<Map<String, dynamic>>>> exportUserTables() async {
+    final d = await userDb;
+    return {
+      'foods': await d.query('foods'),
+      'diary_entries': await d.query('diary_entries'),
+      'recipes': await d.query('recipes'),
+      'recipe_items': await d.query('recipe_items'),
+      'goal_history': await d.query('goal_history'),
+      'weight_log': await d.query('weight_log'),
+      'last_used_grams': await d.query('last_used_grams'),
+    };
+  }
+
+  Future<void> importUserTables(Map<String, dynamic> tables) async {
+    final d = await userDb;
+    await d.transaction((txn) async {
+      // Delete in FK-safe order
+      for (final t in [
+        'last_used_grams',
+        'diary_entries',
+        'recipe_items',
+        'recipes',
+        'foods',
+        'goal_history',
+        'weight_log',
+      ]) {
+        await txn.delete(t);
+      }
+      // Insert in FK-safe order
+      for (final t in [
+        'foods',
+        'recipes',
+        'recipe_items',
+        'diary_entries',
+        'goal_history',
+        'weight_log',
+        'last_used_grams',
+      ]) {
+        for (final row in (tables[t] as List? ?? [])) {
+          await txn.insert(
+            t,
+            Map<String, dynamic>.from(row as Map),
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      }
+    });
+  }
 }
