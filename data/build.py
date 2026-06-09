@@ -278,6 +278,8 @@ def import_off_apac(conn: sqlite3.Connection) -> int:
 
 def import_usda(conn: sqlite3.Connection) -> int:
     base = ROOT / "usda" / "foundation"
+    if not (base / "food.csv").exists():
+        raise FileNotFoundError(f"{base / 'food.csv'}\n  Run: task usda")
 
     # nutrient_id → field name (prefer 1008 "Energy KCAL", fall back to Atwater)
     ENERGY_IDS   = {'1008', '2047', '2048'}

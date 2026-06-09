@@ -12,12 +12,11 @@ tasks:
     desc: "Download and extract AUSNUT 2023 Excel files (~11 MB)"
     vars:
       URL: https://www.foodstandards.gov.au/sites/default/files/2026-03/AUSNUT%202023%20-%20All%20Files_0.zip
-      ARCHIVE: ausnut/AUSNUT2023.zip
     generates:
-      - "{{.ARCHIVE}}"
+      - ausnut/AUSNUT2023.zip
     cmds:
-      - curl -L -o "{{.ARCHIVE}}" "{{.URL}}"
-      - unzip -j -o "{{.ARCHIVE}}" -d ausnut
+      - curl -L -o ausnut/AUSNUT2023.zip "{{.URL}}"
+      - unzip -j -o ausnut/AUSNUT2023.zip -d ausnut
 
   nzfc:
     desc: "Download NZ Food Composition 14th edition Excel file"
@@ -33,24 +32,22 @@ tasks:
     desc: "Download full Open Food Facts dump (~9 GB compressed)"
     vars:
       URL: https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz
-      DUMP: off/en.openfoodfacts.org.products.csv.gz
     generates:
-      - "{{.DUMP}}"
+      - off/en.openfoodfacts.org.products.csv.gz
     cmds:
       - mkdir -p off
-      - curl -L --continue-at - -o "{{.DUMP}}" "{{.URL}}"
+      - curl -L --continue-at - -o off/en.openfoodfacts.org.products.csv.gz "{{.URL}}"
 
   usda:
     desc: "Download and extract USDA Foundation Foods CSV files (~32 MB unzipped)"
     vars:
-      URL: https://www.usda.gov/fdc-datasets/FoodData_Central_foundation_food_csv_2026-04-30.zip
-      ZIP: usda/foundation_food.zip
+      URL: https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_foundation_food_csv_2026-04-30.zip
     generates:
-      - "{{.ZIP}}"
+      - usda/foundation_food.zip
     cmds:
       - mkdir -p usda/foundation
-      - curl -L -o "{{.ZIP}}" "{{.URL}}"
-      - unzip -j -o "{{.ZIP}}" -d usda/foundation
+      - curl -L -o usda/foundation_food.zip "{{.URL}}"
+      - unzip -j -o usda/foundation_food.zip -d usda/foundation
 
   # ── Process ───────────────────────────────────────────────────────────────
 
