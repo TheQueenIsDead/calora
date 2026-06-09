@@ -7,6 +7,7 @@ import 'screens/settings_screen.dart';
 import 'screens/trends_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   final diary = DiaryProvider();
   final settings = SettingsProvider(onGoalChanged: diary.refreshCurrentDay);
 
