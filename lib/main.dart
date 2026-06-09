@@ -6,16 +6,18 @@ import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/trends_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final diary = DiaryProvider();
   final settings = SettingsProvider(onGoalChanged: diary.refreshCurrentDay);
+  await settings.init();
+  await diary.init();
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider.value(value: settings..init()),
-        ChangeNotifierProvider.value(value: diary..init()),
+        ChangeNotifierProvider.value(value: settings),
+        ChangeNotifierProvider.value(value: diary),
       ],
       child: const CaloraApp(),
     ),
@@ -58,10 +60,30 @@ class _RootScaffold extends StatefulWidget {
   State<_RootScaffold> createState() => _RootScaffoldState();
 }
 
-class _RootScaffoldState extends State<_RootScaffold> {
+class _RootScaffoldState extends State<_RootScaffold>
+    with WidgetsBindingObserver {
   int _index = 0;
 
   static const _screens = [HomeScreen(), TrendsScreen(), SettingsScreen()];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<DiaryProvider>().handleAppResume();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
