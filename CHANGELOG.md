@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/TheQueenIsDead/calora/compare/v1.1.0...v1.2.0) (2026-06-09)
+
+
+### Features
+
+* add data export/import and fix Gradle KGP warning ([b3cf615](https://github.com/TheQueenIsDead/calora/commit/b3cf61565615310a208b18e73e7bae890b1c7449))
+
+
+### Bug Fixes
+
+* sign release APK with consistent keystore via GitHub secret ([fb0393e](https://github.com/TheQueenIsDead/calora/commit/fb0393e81aeb73b15cd13c18022d9f88267137b5))
+
 ## [1.1.0](https://github.com/TheQueenIsDead/calora/compare/v1.0.0...v1.1.0) (2026-06-09)
 
 
