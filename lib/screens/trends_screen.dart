@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../providers/diary_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/database_service.dart';
 import 'weight_screen.dart';
@@ -20,10 +21,23 @@ class _TrendsScreenState extends State<TrendsScreen> {
   Map<String, Map<String, double>> _dailyMacros = {};
   bool _loading = true;
 
+  int _lastChangeToken = -1;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final token = context.watch<DiaryProvider>().changeToken;
+    if (token != _lastChangeToken) {
+      _lastChangeToken = token;
+      // Skip the very first call — initState already schedules the load.
+      if (!_loading) _load();
+    }
   }
 
   Future<void> _load() async {
