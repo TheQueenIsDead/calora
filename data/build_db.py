@@ -87,7 +87,7 @@ def _insert(conn: sqlite3.Connection, row: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def import_ausnut(conn: sqlite3.Connection) -> int:
-    base = ROOT / "ausnut" / "AUSNUT 2023 - All Files"
+    base = ROOT / "ausnut"
 
     # --- food details: Survey ID → food name ---
     wb_details = openpyxl.load_workbook(base / "AUSNUT 2023 - Food details.xlsx", read_only=True)
