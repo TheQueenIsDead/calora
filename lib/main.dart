@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/diary_provider.dart';
+import 'providers/settings_provider.dart';
 import 'screens/home_screen.dart';
-import 'screens/trends_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/trends_screen.dart';
 
 void main() {
+  final diary = DiaryProvider();
+  final settings = SettingsProvider(onGoalChanged: diary.refreshCurrentDay);
+
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => DiaryProvider()..init(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: settings..init()),
+        ChangeNotifierProvider.value(value: diary..init()),
+      ],
       child: const CaloraApp(),
     ),
   );

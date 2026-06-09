@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/diary_provider.dart';
+import '../providers/settings_provider.dart';
 import '../services/database_service.dart';
 import '../services/export_service.dart';
 import 'bmr_calculator_screen.dart';
@@ -15,19 +15,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  List<Map<String, dynamic>> _recipes = [];
   bool _exportImportBusy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadRecipes();
-  }
-
-  Future<void> _loadRecipes() async {
-    final recipes = await DatabaseService.instance.getRecipes();
-    if (mounted) setState(() => _recipes = recipes);
-  }
 
   Future<void> _createRecipe() async {
     final name = await _promptName();
@@ -41,7 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             RecipeDetailScreen(recipeId: id, recipeName: name.trim()),
       ),
     );
-    _loadRecipes();
+    if (mounted) context.read<SettingsProvider>().loadRecipes();
   }
 
   Future<String?> _promptName() {
@@ -71,6 +59,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget? _recipeSubtitle(Map<String, dynamic> r) {
+
     final kcal = (r['total_kcal'] as num?)?.toDouble() ?? 0;
     final kcalStr = kcal > 0 ? '${kcal.toStringAsFixed(0)} kcal' : null;
     final description = r['description'] as String?;
@@ -83,7 +72,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final diary = context.watch<DiaryProvider>();
+    final settings = context.watch<SettingsProvider>();
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -99,37 +88,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: const Icon(Icons.local_fire_department_outlined),
             title: const Text('Daily calorie target'),
             trailing: Text(
-              '${diary.currentGoal} kcal',
+              '${settings.currentGoal} kcal',
               style: theme.textTheme.bodyMedium,
             ),
             onTap: () => _editInt(
               context,
               title: 'Daily calorie target',
               suffix: 'kcal',
-              current: diary.currentGoal,
-              onSave: diary.setDailyGoal,
+              current: settings.currentGoal,
+              onSave: settings.setDailyGoal,
             ),
           ),
           ListTile(
             leading: const Icon(Icons.water_drop_outlined),
             title: const Text('Daily water target'),
             trailing: Text(
-              '${diary.waterTargetMl} ml',
+              '${settings.waterTargetMl} ml',
               style: theme.textTheme.bodyMedium,
             ),
             onTap: () => _editInt(
               context,
               title: 'Daily water target',
               suffix: 'ml',
-              current: diary.waterTargetMl,
-              onSave: diary.setWaterTargetMl,
+              current: settings.waterTargetMl,
+              onSave: settings.setWaterTargetMl,
             ),
           ),
           ListTile(
             leading: const Icon(Icons.local_drink_outlined),
             title: const Text('Water vessels'),
             subtitle: Text(
-              '${diary.vessels.length} vessel${diary.vessels.length == 1 ? '' : 's'} configured',
+              '${settings.vessels.length} vessel${settings.vessels.length == 1 ? '' : 's'} configured',
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(
@@ -149,7 +138,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(),
           const _SectionHeader('Recipes'),
-          if (_recipes.isEmpty)
+          if (settings.recipes.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 32),
               child: Column(
@@ -171,13 +160,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             )
           else
-            for (final r in _recipes)
+            for (final r in settings.recipes)
               ListTile(
                 leading: const Icon(Icons.menu_book_outlined),
                 title: Text(r['name'] as String),
                 subtitle: _recipeSubtitle(r),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () async {
+                  final settings = context.read<SettingsProvider>();
                   await Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -187,7 +177,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   );
-                  _loadRecipes();
+                  if (!mounted) return;
+                  settings.loadRecipes();
                 },
               ),
           const Divider(),

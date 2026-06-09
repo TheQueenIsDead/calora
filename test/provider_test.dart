@@ -9,6 +9,7 @@ import 'package:calora/models/diary_entry.dart';
 import 'package:calora/models/food_item.dart';
 import 'package:calora/models/water_vessel.dart';
 import 'package:calora/providers/diary_provider.dart';
+import 'package:calora/providers/settings_provider.dart';
 import 'package:calora/services/database_service.dart';
 
 FoodItem _testFood() => FoodItem(
@@ -176,9 +177,10 @@ void main() {
     'three-state calorie warning: green → amber → red as intake rises',
     () async {
       final diary = DiaryProvider();
+      final settings = SettingsProvider(onGoalChanged: diary.refreshCurrentDay);
+      await settings.setDailyGoal(2000);
+      await settings.setTdee(2500);
       await diary.init();
-      await diary.setDailyGoal(2000);
-      await diary.setTdee(2500);
 
       // Use a unique far-future date so other tests' entries don't contaminate totals.
       final testDate = DateTime(2099, 1, 1);
@@ -196,26 +198,27 @@ void main() {
       // 1500 kcal — under goal → green
       expect(diary.totalCalories, closeTo(1500, 1));
       expect(diary.remainingCalories, greaterThan(0));
-      expect(diary.tdee > 0 && diary.totalCalories > diary.tdee, isFalse);
+      expect(settings.tdee > 0 && diary.totalCalories > settings.tdee, isFalse);
 
       // 2250 kcal — over 2000 goal, under 2500 TDEE → amber
       await diary.updateEntryGrams(entry.id, 450);
       expect(diary.totalCalories, closeTo(2250, 1));
       expect(diary.remainingCalories, lessThan(0));
-      expect(diary.tdee > 0 && diary.totalCalories > diary.tdee, isFalse);
+      expect(settings.tdee > 0 && diary.totalCalories > settings.tdee, isFalse);
 
       // 2750 kcal — over 2500 TDEE → red
       await diary.updateEntryGrams(entry.id, 550);
       expect(diary.totalCalories, closeTo(2750, 1));
-      expect(diary.tdee > 0 && diary.totalCalories > diary.tdee, isTrue);
+      expect(settings.tdee > 0 && diary.totalCalories > settings.tdee, isTrue);
     },
   );
 
   test('three-state warning: isOverTdee is false when TDEE is unset', () async {
     final diary = DiaryProvider();
-    await diary.init();
-    await diary.setDailyGoal(2000);
+    final settings = SettingsProvider(onGoalChanged: diary.refreshCurrentDay);
+    await settings.setDailyGoal(2000);
     // TDEE intentionally not set (defaults to 0)
+    await diary.init();
 
     final testDate = DateTime(2099, 1, 2);
     await diary.loadDay(testDate);
@@ -229,10 +232,10 @@ void main() {
     );
     await diary.addEntry(entry);
 
-    expect(diary.tdee, 0);
+    expect(settings.tdee, 0);
     expect(diary.remainingCalories, lessThan(0)); // over goal
     // isOverTdee must be false when TDEE is 0 — falls back to two-state (over goal only)
-    expect(diary.tdee > 0 && diary.totalCalories > diary.tdee, isFalse);
+    expect(settings.tdee > 0 && diary.totalCalories > settings.tdee, isFalse);
   });
 
   // ── deleteEntry (hard delete) ─────────────────────────────────────────────
@@ -435,52 +438,57 @@ void main() {
   });
 
   test('setWaterTargetMl: clamps to [1, 99999]', () async {
-    final diary = DiaryProvider();
-    await diary.init();
+    final settings = SettingsProvider();
+    await settings.init();
 
-    await diary.setWaterTargetMl(0);
-    expect(diary.waterTargetMl, 1);
+    await settings.setWaterTargetMl(0);
+    expect(settings.waterTargetMl, 1);
 
-    await diary.setWaterTargetMl(100000);
-    expect(diary.waterTargetMl, 99999);
+    await settings.setWaterTargetMl(100000);
+    expect(settings.waterTargetMl, 99999);
 
-    await diary.setWaterTargetMl(2000);
-    expect(diary.waterTargetMl, 2000);
+    await settings.setWaterTargetMl(2000);
+    expect(settings.waterTargetMl, 2000);
   });
 
   test(
     'waterProgress: reflects proportion of target consumed, capped at 1.0',
     () async {
       final diary = DiaryProvider();
+      final settings = SettingsProvider();
       await diary.init();
-      await diary.setWaterTargetMl(1000);
+      await settings.setWaterTargetMl(1000);
 
       await diary.addWaterMl(500);
-      expect(diary.waterProgress, closeTo(0.5, 0.01));
+      final progress1 = settings.waterTargetMl > 0
+          ? (diary.waterMl / settings.waterTargetMl).clamp(0.0, 1.0)
+          : 0.0;
+      expect(progress1, closeTo(0.5, 0.01));
 
-      await diary.addWaterMl(
-        600,
-      ); // total 1100ml — over target, progress capped
-      expect(diary.waterProgress, closeTo(1.0, 0.01));
+      await diary.addWaterMl(600); // total 1100ml — over target, progress capped
+      final progress2 = settings.waterTargetMl > 0
+          ? (diary.waterMl / settings.waterTargetMl).clamp(0.0, 1.0)
+          : 0.0;
+      expect(progress2, closeTo(1.0, 0.01));
     },
   );
 
   // ── setBmr ────────────────────────────────────────────────────────────────
 
   test('setBmr: persists the BMR value in the provider', () async {
-    final diary = DiaryProvider();
-    await diary.init();
-    expect(diary.bmr, 0);
+    final settings = SettingsProvider();
+    await settings.init();
+    expect(settings.bmr, 0);
 
-    await diary.setBmr(1800);
-    expect(diary.bmr, 1800);
+    await settings.setBmr(1800);
+    expect(settings.bmr, 1800);
   });
 
   // ── setVessels ────────────────────────────────────────────────────────────
 
   test('setVessels: replaces the vessels list', () async {
-    final diary = DiaryProvider();
-    await diary.init();
+    final settings = SettingsProvider();
+    await settings.init();
 
     const vessel = WaterVessel(
       id: 'test_vessel_001',
@@ -488,10 +496,10 @@ void main() {
       ml: 300,
       iconCodePoint: 0xe63f, // Icons.local_drink code point
     );
-    await diary.setVessels([vessel]);
-    expect(diary.vessels.length, 1);
-    expect(diary.vessels.first.id, 'test_vessel_001');
-    expect(diary.vessels.first.ml, 300);
+    await settings.setVessels([vessel]);
+    expect(settings.vessels.length, 1);
+    expect(settings.vessels.first.id, 'test_vessel_001');
+    expect(settings.vessels.first.ml, 300);
   });
 
   // ── createRecipeFromMeal ──────────────────────────────────────────────────

@@ -4,15 +4,15 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../models/water_vessel.dart';
-import '../providers/diary_provider.dart';
+import '../providers/settings_provider.dart';
 
 class WaterVesselsScreen extends StatelessWidget {
   const WaterVesselsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final diary = context.watch<DiaryProvider>();
-    final vessels = diary.vessels;
+    final settings = context.watch<SettingsProvider>();
+    final vessels = settings.vessels;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Water Vessels')),
@@ -33,7 +33,7 @@ class WaterVesselsScreen extends StatelessWidget {
                 final updated = [...vessels];
                 if (newIndex > oldIndex) newIndex--;
                 updated.insert(newIndex, updated.removeAt(oldIndex));
-                context.read<DiaryProvider>().setVessels(updated);
+                context.read<SettingsProvider>().setVessels(updated);
               },
               itemBuilder: (context, i) {
                 final v = vessels[i];
@@ -47,11 +47,11 @@ class WaterVesselsScreen extends StatelessWidget {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.edit_outlined),
-                        onPressed: () => _editVessel(context, diary, v),
+                        onPressed: () => _editVessel(context, settings, v),
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _deleteVessel(context, diary, v),
+                        onPressed: () => _deleteVessel(context, settings, v),
                       ),
                       const Icon(Icons.drag_handle),
                     ],
@@ -60,7 +60,7 @@ class WaterVesselsScreen extends StatelessWidget {
               },
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _editVessel(context, diary, null),
+        onPressed: () => _editVessel(context, settings, null),
         child: const Icon(Icons.add),
       ),
     );
@@ -68,7 +68,7 @@ class WaterVesselsScreen extends StatelessWidget {
 
   Future<void> _editVessel(
     BuildContext context,
-    DiaryProvider diary,
+    SettingsProvider settings,
     WaterVessel? existing,
   ) async {
     final result = await showDialog<WaterVessel>(
@@ -76,19 +76,19 @@ class WaterVesselsScreen extends StatelessWidget {
       builder: (ctx) => _VesselDialog(existing: existing),
     );
     if (result == null) return;
-    final vessels = [...diary.vessels];
+    final vessels = [...settings.vessels];
     if (existing != null) {
       final idx = vessels.indexWhere((v) => v.id == existing.id);
       if (idx >= 0) vessels[idx] = result;
     } else {
       vessels.add(result);
     }
-    diary.setVessels(vessels);
+    settings.setVessels(vessels);
   }
 
   Future<void> _deleteVessel(
     BuildContext context,
-    DiaryProvider diary,
+    SettingsProvider settings,
     WaterVessel vessel,
   ) async {
     final confirmed = await showDialog<bool>(
@@ -109,7 +109,9 @@ class WaterVesselsScreen extends StatelessWidget {
       ),
     );
     if (confirmed == true) {
-      diary.setVessels(diary.vessels.where((v) => v.id != vessel.id).toList());
+      settings.setVessels(
+        settings.vessels.where((v) => v.id != vessel.id).toList(),
+      );
     }
   }
 }
