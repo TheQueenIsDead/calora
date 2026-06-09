@@ -344,8 +344,39 @@ def import_usda(conn: sqlite3.Connection) -> int:
 # Main
 # ---------------------------------------------------------------------------
 
+def _counts(db_path: Path) -> dict[str, int]:
+    """Return per-source row counts from an existing DB, or empty dict."""
+    if not db_path.exists():
+        return {}
+    try:
+        c = sqlite3.connect(db_path)
+        rows = c.execute("SELECT source, COUNT(*) FROM foods GROUP BY source").fetchall()
+        c.close()
+        return {source: count for source, count in rows}
+    except Exception:
+        return {}
+
+
+def _print_diff(before: dict[str, int], after: dict[str, int]) -> None:
+    sources = sorted(set(before) | set(after))
+    total_before = sum(before.values())
+    total_after  = sum(after.values())
+    print("\n── Record counts ─────────────────────────────")
+    print(f"  {'Source':<20} {'Before':>8}  {'After':>8}  {'Δ':>8}")
+    print(f"  {'─'*20}  {'─'*8}  {'─'*8}  {'─'*8}")
+    for src in sources:
+        b, a = before.get(src, 0), after.get(src, 0)
+        delta = a - b
+        flag  = "  +" if delta > 0 else ("  -" if delta < 0 else "")
+        print(f"  {src:<20} {b:>8,}  {a:>8,}  {delta:>+8,}{flag}")
+    print(f"  {'─'*20}  {'─'*8}  {'─'*8}  {'─'*8}")
+    print(f"  {'TOTAL':<20} {total_before:>8,}  {total_after:>8,}  {total_after - total_before:>+8,}")
+    print("──────────────────────────────────────────────")
+
+
 def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
+    before = _counts(OUT)
     if OUT.exists():
         OUT.unlink()
 
@@ -364,7 +395,7 @@ def main() -> None:
     conn.commit()
     print(f"{n:,} rows")
 
-    print("Importing Open Food Facts NZ …", end=" ", flush=True)
+    print("Importing Open Food Facts APAC …", end=" ", flush=True)
     n = import_off_apac(conn)
     conn.commit()
     print(f"{n:,} rows")
@@ -374,8 +405,8 @@ def main() -> None:
     conn.commit()
     print(f"{n:,} rows")
 
-    total = conn.execute("SELECT COUNT(*) FROM foods").fetchone()[0]
-    print(f"\nTotal foods in DB: {total:,}")
+    after = dict(conn.execute("SELECT source, COUNT(*) FROM foods GROUP BY source").fetchall())
+    _print_diff(before, after)
 
     print("Building vocabulary …", end=" ", flush=True)
     tokens: set[str] = set()
