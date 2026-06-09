@@ -23,7 +23,12 @@ class _WeightScreenState extends State<WeightScreen> {
 
   Future<void> _load() async {
     final entries = await DatabaseService.instance.getWeightHistory(days: 365);
-    if (mounted) setState(() { _entries = entries; _loading = false; });
+    if (mounted) {
+      setState(() {
+        _entries = entries;
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _logWeight() async {
@@ -42,7 +47,10 @@ class _WeightScreenState extends State<WeightScreen> {
           decoration: const InputDecoration(hintText: '0.0', suffixText: 'kg'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () {
               final kg = double.tryParse(controller.text.trim());
@@ -83,7 +91,10 @@ class _WeightScreenState extends State<WeightScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(left: 8, bottom: 12),
+                              padding: const EdgeInsets.only(
+                                left: 8,
+                                bottom: 12,
+                              ),
                               child: Text(
                                 'Weight — last year',
                                 style: Theme.of(context).textTheme.titleMedium,
@@ -120,8 +131,9 @@ class _WeightScreenState extends State<WeightScreen> {
                               entry: _entries[i],
                               prev: i > 0 ? _entries[i - 1] : null,
                               onDelete: () async {
-                                await DatabaseService.instance
-                                    .deleteWeight(_entries[i].id);
+                                await DatabaseService.instance.deleteWeight(
+                                  _entries[i].id,
+                                );
                                 await _load();
                               },
                             ),
@@ -154,13 +166,13 @@ class _WeightTile extends StatelessWidget {
     final deltaStr = delta == null
         ? null
         : delta >= 0
-            ? '+${delta.toStringAsFixed(1)} kg'
-            : '${delta.toStringAsFixed(1)} kg';
+        ? '+${delta.toStringAsFixed(1)} kg'
+        : '${delta.toStringAsFixed(1)} kg';
     final deltaColor = delta == null
         ? null
         : delta > 0
-            ? theme.colorScheme.error
-            : theme.colorScheme.primary;
+        ? theme.colorScheme.error
+        : theme.colorScheme.primary;
 
     return ListTile(
       title: Text('${entry.kg.toStringAsFixed(1)} kg'),
@@ -169,8 +181,10 @@ class _WeightTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (deltaStr != null)
-            Text(deltaStr,
-                style: theme.textTheme.bodySmall?.copyWith(color: deltaColor)),
+            Text(
+              deltaStr,
+              style: theme.textTheme.bodySmall?.copyWith(color: deltaColor),
+            ),
           const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.delete_outline, size: 20),
@@ -192,16 +206,16 @@ class _WeightLineChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final spots = entries.asMap().entries
+    final spots = entries
+        .asMap()
+        .entries
         .map((e) => FlSpot(e.key.toDouble(), e.value.kg))
         .toList();
 
-    final minY =
-        (entries.map((e) => e.kg).reduce((a, b) => a < b ? a : b) - 2)
-            .floorToDouble();
-    final maxY =
-        (entries.map((e) => e.kg).reduce((a, b) => a > b ? a : b) + 2)
-            .ceilToDouble();
+    final minY = (entries.map((e) => e.kg).reduce((a, b) => a < b ? a : b) - 2)
+        .floorToDouble();
+    final maxY = (entries.map((e) => e.kg).reduce((a, b) => a > b ? a : b) + 2)
+        .ceilToDouble();
 
     return LineChart(
       LineChartData(
@@ -216,11 +230,12 @@ class _WeightLineChart extends StatelessWidget {
             barWidth: 2,
             dotData: FlDotData(
               show: entries.length <= 30,
-              getDotPainter: (spot, xPercentage, bar, barIndex) => FlDotCirclePainter(
-                radius: 3,
-                color: theme.colorScheme.primary,
-                strokeWidth: 0,
-              ),
+              getDotPainter: (spot, xPercentage, bar, barIndex) =>
+                  FlDotCirclePainter(
+                    radius: 3,
+                    color: theme.colorScheme.primary,
+                    strokeWidth: 0,
+                  ),
             ),
             belowBarData: BarAreaData(
               show: true,
@@ -249,10 +264,12 @@ class _WeightLineChart extends StatelessWidget {
               ),
             ),
           ),
-          rightTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -285,8 +302,9 @@ class _WeightLineChart extends StatelessWidget {
               return LineTooltipItem(
                 '${DateFormat('d MMM').format(entry.date)}\n'
                 '${entry.kg.toStringAsFixed(1)} kg',
-                theme.textTheme.labelSmall!
-                    .copyWith(color: theme.colorScheme.onSurface),
+                theme.textTheme.labelSmall!.copyWith(
+                  color: theme.colorScheme.onSurface,
+                ),
               );
             }).toList(),
           ),
@@ -318,7 +336,12 @@ class _WeightChartCardState extends State<WeightChartCard> {
 
   Future<void> _load() async {
     final entries = await DatabaseService.instance.getWeightHistory(days: 90);
-    if (mounted) setState(() { _entries = entries; _loading = false; });
+    if (mounted) {
+      setState(() {
+        _entries = entries;
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _logWeight() async {
@@ -337,7 +360,10 @@ class _WeightChartCardState extends State<WeightChartCard> {
           decoration: const InputDecoration(hintText: '0.0', suffixText: 'kg'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () {
               final kg = double.tryParse(controller.text.trim());
@@ -374,8 +400,10 @@ class _WeightChartCardState extends State<WeightChartCard> {
                     child: Row(
                       children: [
                         Expanded(
-                          child: Text('Weight',
-                              style: theme.textTheme.titleMedium),
+                          child: Text(
+                            'Weight',
+                            style: theme.textTheme.titleMedium,
+                          ),
                         ),
                         TextButton.icon(
                           onPressed: _logWeight,
@@ -386,7 +414,8 @@ class _WeightChartCardState extends State<WeightChartCard> {
                           onPressed: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                                builder: (_) => const WeightScreen()),
+                              builder: (_) => const WeightScreen(),
+                            ),
                           ).then((_) => _load()),
                           child: const Text('History'),
                         ),
@@ -399,7 +428,8 @@ class _WeightChartCardState extends State<WeightChartCard> {
                       child: Text(
                         'Log at least 2 entries to see your weight trend.',
                         style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant),
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     )
                   else

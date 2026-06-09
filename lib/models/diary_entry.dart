@@ -4,11 +4,11 @@ enum Meal { breakfast, lunch, dinner, snack }
 
 extension MealLabel on Meal {
   String get label => switch (this) {
-        Meal.breakfast => 'Breakfast',
-        Meal.lunch => 'Lunch',
-        Meal.dinner => 'Dinner',
-        Meal.snack => 'Snack',
-      };
+    Meal.breakfast => 'Breakfast',
+    Meal.lunch => 'Lunch',
+    Meal.dinner => 'Dinner',
+    Meal.snack => 'Snack',
+  };
 }
 
 class DiaryEntry {
@@ -32,14 +32,15 @@ class DiaryEntry {
   double get protein => food.proteinForGrams(grams);
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'food_id': food.id,
-        'grams': grams,
-        'date': date.toIso8601String().substring(0, 10),
-        'meal': meal.name,
-      };
+    'id': id,
+    'food_id': food.id,
+    'grams': grams,
+    'date': date.toIso8601String().substring(0, 10),
+    'meal': meal.name,
+  };
 
-  factory DiaryEntry.fromMap(Map<String, dynamic> m, FoodItem food) => DiaryEntry(
+  factory DiaryEntry.fromMap(Map<String, dynamic> m, FoodItem food) =>
+      DiaryEntry(
         id: m['id'] as String,
         food: food,
         grams: (m['grams'] as num).toDouble(),

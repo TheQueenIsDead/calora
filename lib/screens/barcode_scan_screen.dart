@@ -42,7 +42,9 @@ class _BarcodeScanScreenState extends State<BarcodeScanScreen> {
               padding: const EdgeInsets.only(bottom: 40),
               child: Text(
                 'Point at a barcode',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.white),
               ),
             ),
           ),

@@ -133,17 +133,21 @@ class _CalorieChart extends StatelessWidget {
         barColor = theme.colorScheme.primary;
       }
 
-      bars.add(BarChartGroupData(
-        x: i,
-        barRods: [
-          BarChartRodData(
-            toY: kcal,
-            color: barColor,
-            width: 8,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
-          ),
-        ],
-      ));
+      bars.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: kcal,
+              color: barColor,
+              width: 8,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(3),
+              ),
+            ),
+          ],
+        ),
+      );
 
       // Step function: insert a point at the old goal just before a change
       if (prevGoal != null && prevGoal != dayGoal) {
@@ -167,21 +171,29 @@ class _CalorieChart extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text('Calories — last $days days',
-                        style: theme.textTheme.titleMedium),
+                    child: Text(
+                      'Calories — last $days days',
+                      style: theme.textTheme.titleMedium,
+                    ),
                   ),
                   Container(width: 16, height: 2, color: goalColor),
                   const SizedBox(width: 4),
-                  Text('Goal',
-                      style: theme.textTheme.labelSmall
-                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  Text(
+                    'Goal',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                   if (hasTdee) ...[
                     const SizedBox(width: 12),
                     Container(width: 16, height: 2, color: tdeeColor),
                     const SizedBox(width: 4),
-                    Text('TDEE',
-                        style: theme.textTheme.labelSmall
-                            ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                    Text(
+                      'TDEE',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ],
                 ],
               ),
@@ -198,7 +210,9 @@ class _CalorieChart extends StatelessWidget {
                         drawVerticalLine: false,
                         horizontalInterval: maxY / 4,
                         getDrawingHorizontalLine: (_) => FlLine(
-                          color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.3,
+                          ),
                           strokeWidth: 1,
                           dashArray: [4, 4],
                         ),
@@ -208,17 +222,18 @@ class _CalorieChart extends StatelessWidget {
                       barTouchData: BarTouchData(
                         touchTooltipData: BarTouchTooltipData(
                           getTooltipItem: (group, _, rod, _) {
-                            final date = today
-                                .subtract(Duration(days: days - 1 - group.x));
-                            final key =
-                                date.toIso8601String().substring(0, 10);
+                            final date = today.subtract(
+                              Duration(days: days - 1 - group.x),
+                            );
+                            final key = date.toIso8601String().substring(0, 10);
                             final goalVal = dailyGoals[key] ?? 2000;
                             return BarTooltipItem(
                               '${DateFormat('d MMM').format(date)}\n'
                               '${rod.toY.toStringAsFixed(0)} kcal  '
                               '(goal $goalVal)',
                               theme.textTheme.labelSmall!.copyWith(
-                                  color: theme.colorScheme.onSurface),
+                                color: theme.colorScheme.onSurface,
+                              ),
                             );
                           },
                         ),
@@ -267,9 +282,11 @@ class _CalorieChart extends StatelessWidget {
                             ),
                           ),
                           rightTitles: const AxisTitles(
-                              sideTitles: SideTitles(showTitles: false)),
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
                           topTitles: const AxisTitles(
-                              sideTitles: SideTitles(showTitles: false)),
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
                           bottomTitles: AxisTitles(
                             sideTitles: SideTitles(
                               showTitles: true,
@@ -295,36 +312,36 @@ class _CalorieChart extends StatelessWidget {
   }
 
   FlTitlesData _titlesData(ThemeData theme, DateTime today) => FlTitlesData(
-        leftTitles: AxisTitles(
-          sideTitles: SideTitles(
-            showTitles: true,
-            reservedSize: 44,
-            getTitlesWidget: (v, _) => Text(
-              '${(v / 1000).toStringAsFixed(1)}k',
+    leftTitles: AxisTitles(
+      sideTitles: SideTitles(
+        showTitles: true,
+        reservedSize: 44,
+        getTitlesWidget: (v, _) => Text(
+          '${(v / 1000).toStringAsFixed(1)}k',
+          style: theme.textTheme.labelSmall,
+        ),
+      ),
+    ),
+    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+    bottomTitles: AxisTitles(
+      sideTitles: SideTitles(
+        showTitles: true,
+        getTitlesWidget: (v, _) {
+          final x = v.toInt();
+          if (x % 7 != 0) return const SizedBox.shrink();
+          final date = today.subtract(Duration(days: days - 1 - x));
+          return Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              DateFormat('d MMM').format(date),
               style: theme.textTheme.labelSmall,
             ),
-          ),
-        ),
-        rightTitles:
-            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        topTitles:
-            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        bottomTitles: AxisTitles(
-          sideTitles: SideTitles(
-            showTitles: true,
-            getTitlesWidget: (v, _) {
-              final x = v.toInt();
-              if (x % 7 != 0) return const SizedBox.shrink();
-              final date = today.subtract(Duration(days: days - 1 - x));
-              return Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(DateFormat('d MMM').format(date),
-                    style: theme.textTheme.labelSmall),
-              );
-            },
-          ),
-        ),
-      );
+          );
+        },
+      ),
+    ),
+  );
 }
 
 // ── Macro chart ──────────────────────────────────────────────────────────────
@@ -357,27 +374,28 @@ class _MacroChart extends StatelessWidget {
       final total = protein + fat + carbs;
       if (total > maxY) maxY = total;
 
-      bars.add(BarChartGroupData(
-        x: i,
-        barRods: [
-          BarChartRodData(
-            toY: total,
-            width: 8,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(3)),
-            rodStackItems: total == 0
-                ? []
-                : [
-                    BarChartRodStackItem(0, protein, _proteinColor),
-                    BarChartRodStackItem(
-                        protein, protein + fat, _fatColor),
-                    BarChartRodStackItem(
-                        protein + fat, total, _carbsColor),
-                  ],
-            color: total == 0 ? theme.colorScheme.outlineVariant : null,
-          ),
-        ],
-      ));
+      bars.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: total,
+              width: 8,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(3),
+              ),
+              rodStackItems: total == 0
+                  ? []
+                  : [
+                      BarChartRodStackItem(0, protein, _proteinColor),
+                      BarChartRodStackItem(protein, protein + fat, _fatColor),
+                      BarChartRodStackItem(protein + fat, total, _carbsColor),
+                    ],
+              color: total == 0 ? theme.colorScheme.outlineVariant : null,
+            ),
+          ],
+        ),
+      );
     }
 
     maxY = maxY * 1.2;
@@ -391,8 +409,10 @@ class _MacroChart extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.only(left: 8, bottom: 4),
-              child: Text('Macros — last $days days',
-                  style: theme.textTheme.titleMedium),
+              child: Text(
+                'Macros — last $days days',
+                style: theme.textTheme.titleMedium,
+              ),
             ),
             Padding(
               padding: const EdgeInsets.only(left: 8, bottom: 16),
@@ -426,21 +446,26 @@ class _MacroChart extends StatelessWidget {
                       ),
                     ),
                     rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
                     topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
                         getTitlesWidget: (v, _) {
                           final x = v.toInt();
                           if (x % 7 != 0) return const SizedBox.shrink();
-                          final date = today
-                              .subtract(Duration(days: days - 1 - x));
+                          final date = today.subtract(
+                            Duration(days: days - 1 - x),
+                          );
                           return Padding(
                             padding: const EdgeInsets.only(top: 4),
-                            child: Text(DateFormat('d MMM').format(date),
-                                style: theme.textTheme.labelSmall),
+                            child: Text(
+                              DateFormat('d MMM').format(date),
+                              style: theme.textTheme.labelSmall,
+                            ),
                           );
                         },
                       ),
@@ -449,10 +474,14 @@ class _MacroChart extends StatelessWidget {
                   barTouchData: BarTouchData(
                     touchTooltipData: BarTouchTooltipData(
                       getTooltipItem: (group, _, rod, _) {
-                        final date = today
-                            .subtract(Duration(days: days - 1 - group.x));
-                        final macros = dailyMacros[
-                            date.toIso8601String().substring(0, 10)];
+                        final date = today.subtract(
+                          Duration(days: days - 1 - group.x),
+                        );
+                        final macros =
+                            dailyMacros[date.toIso8601String().substring(
+                              0,
+                              10,
+                            )];
                         if (macros == null) return null;
                         return BarTooltipItem(
                           '${DateFormat('d MMM').format(date)}\n'
@@ -460,7 +489,8 @@ class _MacroChart extends StatelessWidget {
                           'F: ${macros['fat']!.toStringAsFixed(0)}g  '
                           'C: ${macros['carbs']!.toStringAsFixed(0)}g',
                           theme.textTheme.labelSmall!.copyWith(
-                              color: theme.colorScheme.onSurface),
+                            color: theme.colorScheme.onSurface,
+                          ),
                         );
                       },
                     ),
@@ -513,8 +543,7 @@ class _SummaryStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logged =
-        dailyCalories.entries.where((e) => e.value > 0).toList();
+    final logged = dailyCalories.entries.where((e) => e.value > 0).toList();
     final avgCal = logged.isEmpty
         ? 0.0
         : logged.map((e) => e.value).reduce((a, b) => a + b) / logged.length;
@@ -555,21 +584,25 @@ class _SummaryStats extends StatelessWidget {
             const SizedBox(height: 12),
             _StatRow(label: 'Days logged', value: '${logged.length}'),
             _StatRow(
-                label: 'Average calories',
-                value: '${avgCal.toStringAsFixed(0)} kcal'),
+              label: 'Average calories',
+              value: '${avgCal.toStringAsFixed(0)} kcal',
+            ),
             _StatRow(label: 'Days at or under goal', value: '$daysUnder'),
             _StatRow(label: 'Days over goal', value: '$daysOver'),
             if (logged.isNotEmpty) ...[
               const Divider(height: 24),
               _StatRow(
-                  label: 'Avg protein',
-                  value: '${avgProtein.toStringAsFixed(0)} g'),
+                label: 'Avg protein',
+                value: '${avgProtein.toStringAsFixed(0)} g',
+              ),
               _StatRow(
-                  label: 'Avg fat',
-                  value: '${avgFat.toStringAsFixed(0)} g'),
+                label: 'Avg fat',
+                value: '${avgFat.toStringAsFixed(0)} g',
+              ),
               _StatRow(
-                  label: 'Avg carbs',
-                  value: '${avgCarbs.toStringAsFixed(0)} g'),
+                label: 'Avg carbs',
+                value: '${avgCarbs.toStringAsFixed(0)} g',
+              ),
             ],
           ],
         ),
@@ -591,11 +624,12 @@ class _StatRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: Theme.of(context).textTheme.bodyMedium),
-          Text(value,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w600)),
+          Text(
+            value,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );

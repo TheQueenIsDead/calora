@@ -44,8 +44,7 @@ class FoodItem {
   static String formatName(String raw) {
     String titleWord(String w) =>
         w.isEmpty ? w : w[0].toUpperCase() + w.substring(1).toLowerCase();
-    String titleCase(String s) =>
-        s.trim().split(' ').map(titleWord).join(' ');
+    String titleCase(String s) => s.trim().split(' ').map(titleWord).join(' ');
 
     final i = raw.indexOf(',');
     if (i == -1) return titleCase(raw);
@@ -53,45 +52,46 @@ class FoodItem {
   }
 
   String get formattedName => formatName(name);
-  String get displayName => brand != null ? '$formattedName ($brand)' : formattedName;
+  String get displayName =>
+      brand != null ? '$formattedName ($brand)' : formattedName;
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'name': name,
-        'brand': brand,
-        'barcode': barcode,
-        'calories_per_100g': caloriesPer100g,
-        'fat_per_100g': fatPer100g,
-        'saturated_fat_per_100g': saturatedFatPer100g,
-        'carbs_per_100g': carbsPer100g,
-        'sugars_per_100g': sugarsPer100g,
-        'fiber_per_100g': fiberPer100g,
-        'protein_per_100g': proteinPer100g,
-        'sodium_per_100g': sodiumPer100g,
-        'serving_size': servingSize,
-        'serving_grams': servingGrams,
-        'image_url': imageUrl,
-        'source': source,
-      };
+    'id': id,
+    'name': name,
+    'brand': brand,
+    'barcode': barcode,
+    'calories_per_100g': caloriesPer100g,
+    'fat_per_100g': fatPer100g,
+    'saturated_fat_per_100g': saturatedFatPer100g,
+    'carbs_per_100g': carbsPer100g,
+    'sugars_per_100g': sugarsPer100g,
+    'fiber_per_100g': fiberPer100g,
+    'protein_per_100g': proteinPer100g,
+    'sodium_per_100g': sodiumPer100g,
+    'serving_size': servingSize,
+    'serving_grams': servingGrams,
+    'image_url': imageUrl,
+    'source': source,
+  };
 
   factory FoodItem.fromMap(Map<String, dynamic> m) => FoodItem(
-        id: m['id'] as String,
-        name: m['name'] as String,
-        brand: m['brand'] as String?,
-        barcode: m['barcode'] as String?,
-        caloriesPer100g: (m['calories_per_100g'] as num).toDouble(),
-        fatPer100g: (m['fat_per_100g'] as num? ?? 0).toDouble(),
-        saturatedFatPer100g: (m['saturated_fat_per_100g'] as num? ?? 0).toDouble(),
-        carbsPer100g: (m['carbs_per_100g'] as num? ?? 0).toDouble(),
-        sugarsPer100g: (m['sugars_per_100g'] as num? ?? 0).toDouble(),
-        fiberPer100g: (m['fiber_per_100g'] as num? ?? 0).toDouble(),
-        proteinPer100g: (m['protein_per_100g'] as num? ?? 0).toDouble(),
-        sodiumPer100g: (m['sodium_per_100g'] as num? ?? 0).toDouble(),
-        servingSize: m['serving_size'] as String?,
-        servingGrams: (m['serving_grams'] as num?)?.toDouble(),
-        imageUrl: m['image_url'] as String?,
-        source: m['source'] as String? ?? 'custom',
-      );
+    id: m['id'] as String,
+    name: m['name'] as String,
+    brand: m['brand'] as String?,
+    barcode: m['barcode'] as String?,
+    caloriesPer100g: (m['calories_per_100g'] as num).toDouble(),
+    fatPer100g: (m['fat_per_100g'] as num? ?? 0).toDouble(),
+    saturatedFatPer100g: (m['saturated_fat_per_100g'] as num? ?? 0).toDouble(),
+    carbsPer100g: (m['carbs_per_100g'] as num? ?? 0).toDouble(),
+    sugarsPer100g: (m['sugars_per_100g'] as num? ?? 0).toDouble(),
+    fiberPer100g: (m['fiber_per_100g'] as num? ?? 0).toDouble(),
+    proteinPer100g: (m['protein_per_100g'] as num? ?? 0).toDouble(),
+    sodiumPer100g: (m['sodium_per_100g'] as num? ?? 0).toDouble(),
+    servingSize: m['serving_size'] as String?,
+    servingGrams: (m['serving_grams'] as num?)?.toDouble(),
+    imageUrl: m['image_url'] as String?,
+    source: m['source'] as String? ?? 'custom',
+  );
 
   factory FoodItem.fromOpenFoodFacts(Map<String, dynamic> json) {
     final n = json['nutriments'] as Map<String, dynamic>? ?? {};

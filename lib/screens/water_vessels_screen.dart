@@ -21,7 +21,8 @@ class WaterVesselsScreen extends StatelessWidget {
               child: Text(
                 'No vessels yet. Tap + to add one.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             )
           : ReorderableListView.builder(
@@ -66,7 +67,10 @@ class WaterVesselsScreen extends StatelessWidget {
   }
 
   Future<void> _editVessel(
-      BuildContext context, DiaryProvider diary, WaterVessel? existing) async {
+    BuildContext context,
+    DiaryProvider diary,
+    WaterVessel? existing,
+  ) async {
     final result = await showDialog<WaterVessel>(
       context: context,
       builder: (ctx) => _VesselDialog(existing: existing),
@@ -83,7 +87,10 @@ class WaterVesselsScreen extends StatelessWidget {
   }
 
   Future<void> _deleteVessel(
-      BuildContext context, DiaryProvider diary, WaterVessel vessel) async {
+    BuildContext context,
+    DiaryProvider diary,
+    WaterVessel vessel,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -91,11 +98,13 @@ class WaterVesselsScreen extends StatelessWidget {
         content: Text('Remove "${vessel.name}"?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Delete')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -148,10 +157,9 @@ class _VesselDialogState extends State<_VesselDialog> {
     final existing = widget.existing;
     if (existing != null) {
       _selectedOption = WaterVessel.availableIcons.firstWhere(
-        (opt) =>
-            opt.isSvg
-                ? opt.svgPath == existing.svgAsset
-                : opt.codePoint == existing.iconCodePoint,
+        (opt) => opt.isSvg
+            ? opt.svgPath == existing.svgAsset
+            : opt.codePoint == existing.iconCodePoint,
         orElse: () => WaterVessel.availableIcons.first,
       );
     } else {
@@ -223,7 +231,9 @@ class _VesselDialogState extends State<_VesselDialog> {
                         borderRadius: BorderRadius.circular(8),
                         border: selected
                             ? Border.all(
-                                color: theme.colorScheme.primary, width: 2)
+                                color: theme.colorScheme.primary,
+                                width: 2,
+                              )
                             : null,
                       ),
                       child: Center(
@@ -256,8 +266,9 @@ class _VesselDialogState extends State<_VesselDialog> {
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel')),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
           onPressed: () {
             final name = _nameCtrl.text.trim();
@@ -268,8 +279,7 @@ class _VesselDialogState extends State<_VesselDialog> {
               name: name,
               ml: ml,
               iconCodePoint: _selectedOption.codePoint,
-              svgAsset:
-                  _selectedOption.isSvg ? _selectedOption.svgPath : null,
+              svgAsset: _selectedOption.isSvg ? _selectedOption.svgPath : null,
             );
             Navigator.pop(context, vessel);
           },

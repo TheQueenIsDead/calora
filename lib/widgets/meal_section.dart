@@ -42,9 +42,12 @@ class MealSection extends StatelessWidget {
               ? BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.6),
-                      width: 2),
-                  color: theme.colorScheme.primaryContainer.withValues(alpha: 0.15),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.6),
+                    width: 2,
+                  ),
+                  color: theme.colorScheme.primaryContainer.withValues(
+                    alpha: 0.15,
+                  ),
                 )
               : null,
           padding: isHovered ? const EdgeInsets.all(4) : EdgeInsets.zero,
@@ -57,16 +60,18 @@ class MealSection extends StatelessWidget {
                   children: [
                     Text(
                       meal.label,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const Spacer(),
                     if (entries.isNotEmpty) ...[
                       Text(
                         '${_mealCalories.toStringAsFixed(0)} kcal',
                         style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w600),
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       if (onSaveAsRecipe != null) ...[
                         const SizedBox(width: 4),
@@ -75,9 +80,11 @@ class MealSection extends StatelessWidget {
                           borderRadius: BorderRadius.circular(20),
                           child: Padding(
                             padding: const EdgeInsets.all(4),
-                            child: Icon(Icons.bookmark_add_outlined,
-                                size: 20,
-                                color: theme.colorScheme.onSurfaceVariant),
+                            child: Icon(
+                              Icons.bookmark_add_outlined,
+                              size: 20,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       ],
@@ -89,8 +96,11 @@ class MealSection extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                         child: Padding(
                           padding: const EdgeInsets.all(4),
-                          child: Icon(Icons.add_circle_outline,
-                              size: 20, color: theme.colorScheme.primary),
+                          child: Icon(
+                            Icons.add_circle_outline,
+                            size: 20,
+                            color: theme.colorScheme.primary,
+                          ),
                         ),
                       ),
                     ],
@@ -103,9 +113,10 @@ class MealSection extends StatelessWidget {
                   child: Text(
                     isHovered ? 'Drop here' : 'Nothing logged yet',
                     style: theme.textTheme.bodySmall?.copyWith(
-                        color: isHovered
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurfaceVariant),
+                      color: isHovered
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 )
               else
@@ -116,10 +127,11 @@ class MealSection extends StatelessWidget {
                       for (int i = 0; i < entries.length; i++) ...[
                         if (i > 0) const Divider(height: 1, indent: 16),
                         _EntryTile(
-                            entry: entries[i],
-                            onDelete: onDelete,
-                            onEdit: onEdit,
-                            isLocked: isLocked),
+                          entry: entries[i],
+                          onDelete: onDelete,
+                          onEdit: onEdit,
+                          isLocked: isLocked,
+                        ),
                       ],
                     ],
                   ),
@@ -167,14 +179,18 @@ class _EntryTile extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.drag_indicator, size: 18,
-                  color: theme.colorScheme.onSurfaceVariant),
+              Icon(
+                Icons.drag_indicator,
+                size: 18,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   entry.food.formattedName,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.w500),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -187,10 +203,7 @@ class _EntryTile extends StatelessWidget {
           ),
         ),
       ),
-      childWhenDragging: Opacity(
-        opacity: 0.35,
-        child: _tileContent(context),
-      ),
+      childWhenDragging: Opacity(opacity: 0.35, child: _tileContent(context)),
       child: Slidable(
         key: Key(entry.id),
         endActionPane: ActionPane(
@@ -222,8 +235,9 @@ class _EntryTile extends StatelessWidget {
       title: Text(entry.food.formattedName, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         '${entry.grams.toStringAsFixed(0)} g',
-        style: theme.textTheme.bodySmall
-            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
       ),
       trailing: Text(
         '${entry.calories.toStringAsFixed(0)} kcal',
@@ -273,7 +287,7 @@ class _EntryTile extends StatelessWidget {
     '31' => Icons.breakfast_dining,
     '33' => Icons.set_meal,
     '34' => Icons.fitness_center,
-    _   => null,
+    _ => null,
   };
 
   static IconData? _nzIcon(String letter) => switch (letter) {
@@ -299,32 +313,307 @@ class _EntryTile extends StatelessWidget {
     'V' => Icons.soup_kitchen,
     'W' => Icons.cake,
     'X' => Icons.eco,
-    _   => null,
+    _ => null,
   };
 
   static IconData _keywordIcon(String name) {
     final n = name.toLowerCase();
     bool has(List<String> words) => words.any((w) => n.contains(w));
 
-    if (has(['coffee', 'espresso', 'latte', 'cappuccino', 'flat white', 'mocha'])) return Icons.local_cafe;
+    if (has([
+      'coffee',
+      'espresso',
+      'latte',
+      'cappuccino',
+      'flat white',
+      'mocha',
+    ])) {
+      return Icons.local_cafe;
+    }
     if (has(['tea', 'chai'])) return Icons.emoji_food_beverage;
-    if (has(['beer', 'wine', 'spirit', 'alcohol', 'cider', 'liqueur', 'whisky', 'vodka', 'rum', 'gin'])) return Icons.local_bar;
-    if (has(['juice', 'smoothie', 'water', 'soda', 'cola', 'drink', 'beverage', 'milkshake'])) return Icons.local_drink;
+    if (has([
+      'beer',
+      'wine',
+      'spirit',
+      'alcohol',
+      'cider',
+      'liqueur',
+      'whisky',
+      'vodka',
+      'rum',
+      'gin',
+    ])) {
+      return Icons.local_bar;
+    }
+    if (has([
+      'juice',
+      'smoothie',
+      'water',
+      'soda',
+      'cola',
+      'drink',
+      'beverage',
+      'milkshake',
+    ])) {
+      return Icons.local_drink;
+    }
     if (has(['egg', 'omelette', 'omelet'])) return Icons.egg;
-    if (has(['apple', 'banana', 'orange', 'grape', 'berry', 'mango', 'pear', 'peach', 'plum', 'cherry', 'melon', 'pineapple', 'kiwi', 'lemon', 'lime', 'fruit', 'avocado', 'fig', 'apricot', 'nectarine', 'guava', 'papaya', 'passionfruit'])) return Icons.eco;
-    if (has(['vegetable', 'veg', 'carrot', 'broccoli', 'spinach', 'lettuce', 'tomato', 'cucumber', 'onion', 'garlic', 'potato', 'pea', 'bean', 'corn', 'celery', 'zucchini', 'courgette', 'capsicum', 'pepper', 'mushroom', 'salad', 'kale', 'cabbage', 'cauliflower', 'asparagus', 'beetroot', 'leek', 'pumpkin', 'squash', 'artichoke', 'eggplant', 'aubergine', 'silverbeet', 'bok choy', 'rocket'])) return Icons.eco;
-    if (has(['beef', 'chicken', 'pork', 'lamb', 'turkey', 'meat', 'steak', 'mince', 'sausage', 'bacon', 'ham', 'salami', 'pepperoni', 'venison', 'duck', 'veal', 'liver', 'prosciutto', 'chorizo', 'schnitzel'])) return Icons.set_meal;
-    if (has(['fish', 'salmon', 'tuna', 'cod', 'prawn', 'shrimp', 'crab', 'lobster', 'squid', 'seafood', 'mussel', 'oyster', 'anchovy', 'sardine', 'mackerel', 'snapper', 'hoki', 'barramundi', 'trout'])) return Icons.set_meal;
-    if (has(['bread', 'toast', 'roll', 'bagel', 'wrap', 'tortilla', 'pita', 'naan', 'sourdough', 'baguette', 'croissant', 'crumpet', 'flatbread', 'focaccia'])) return Icons.breakfast_dining;
-    if (has(['pasta', 'noodle', 'spaghetti', 'penne', 'lasagne', 'lasagna', 'gnocchi', 'rice', 'risotto', 'couscous', 'quinoa', 'polenta'])) return Icons.dinner_dining;
-    if (has(['oat', 'cereal', 'muesli', 'granola', 'grain', 'barley', 'bran', 'porridge'])) return Icons.grain;
-    if (has(['milk', 'cheese', 'yogurt', 'yoghurt', 'butter', 'cream', 'dairy', 'whey', 'cheddar', 'mozzarella', 'feta', 'ricotta', 'custard'])) return Icons.water_drop;
-    if (has(['nut', 'almond', 'walnut', 'cashew', 'peanut', 'pistachio', 'pecan', 'hazelnut', 'macadamia', 'seed', 'chia', 'tahini'])) return Icons.grain;
-    if (has(['burger', 'pizza', 'chips', 'fries', 'hot dog', 'kebab', 'taco', 'burrito', 'nugget', 'takeaway', 'takeout'])) return Icons.fastfood;
-    if (has(['cake', 'cookie', 'biscuit', 'chocolate', 'candy', 'sweet', 'dessert', 'ice cream', 'gelato', 'pudding', 'brownie', 'donut', 'doughnut', 'tart', 'muffin', 'scone', 'waffle', 'pancake', 'lolly', 'lollies'])) return Icons.cake;
-    if (has(['soup', 'broth', 'stew', 'chowder', 'ramen', 'pho', 'laksa'])) return Icons.soup_kitchen;
-    if (has(['oil', 'dressing', 'sauce', 'mayonnaise', 'ketchup', 'mustard', 'vinegar', 'pesto', 'hummus', 'jam', 'honey', 'syrup', 'spread', 'vegemite', 'marmite'])) return Icons.opacity;
-    if (has(['protein', 'supplement', 'powder', 'creatine'])) return Icons.fitness_center;
+    if (has([
+      'apple',
+      'banana',
+      'orange',
+      'grape',
+      'berry',
+      'mango',
+      'pear',
+      'peach',
+      'plum',
+      'cherry',
+      'melon',
+      'pineapple',
+      'kiwi',
+      'lemon',
+      'lime',
+      'fruit',
+      'avocado',
+      'fig',
+      'apricot',
+      'nectarine',
+      'guava',
+      'papaya',
+      'passionfruit',
+    ])) {
+      return Icons.eco;
+    }
+    if (has([
+      'vegetable',
+      'veg',
+      'carrot',
+      'broccoli',
+      'spinach',
+      'lettuce',
+      'tomato',
+      'cucumber',
+      'onion',
+      'garlic',
+      'potato',
+      'pea',
+      'bean',
+      'corn',
+      'celery',
+      'zucchini',
+      'courgette',
+      'capsicum',
+      'pepper',
+      'mushroom',
+      'salad',
+      'kale',
+      'cabbage',
+      'cauliflower',
+      'asparagus',
+      'beetroot',
+      'leek',
+      'pumpkin',
+      'squash',
+      'artichoke',
+      'eggplant',
+      'aubergine',
+      'silverbeet',
+      'bok choy',
+      'rocket',
+    ])) {
+      return Icons.eco;
+    }
+    if (has([
+      'beef',
+      'chicken',
+      'pork',
+      'lamb',
+      'turkey',
+      'meat',
+      'steak',
+      'mince',
+      'sausage',
+      'bacon',
+      'ham',
+      'salami',
+      'pepperoni',
+      'venison',
+      'duck',
+      'veal',
+      'liver',
+      'prosciutto',
+      'chorizo',
+      'schnitzel',
+    ])) {
+      return Icons.set_meal;
+    }
+    if (has([
+      'fish',
+      'salmon',
+      'tuna',
+      'cod',
+      'prawn',
+      'shrimp',
+      'crab',
+      'lobster',
+      'squid',
+      'seafood',
+      'mussel',
+      'oyster',
+      'anchovy',
+      'sardine',
+      'mackerel',
+      'snapper',
+      'hoki',
+      'barramundi',
+      'trout',
+    ])) {
+      return Icons.set_meal;
+    }
+    if (has([
+      'bread',
+      'toast',
+      'roll',
+      'bagel',
+      'wrap',
+      'tortilla',
+      'pita',
+      'naan',
+      'sourdough',
+      'baguette',
+      'croissant',
+      'crumpet',
+      'flatbread',
+      'focaccia',
+    ])) {
+      return Icons.breakfast_dining;
+    }
+    if (has([
+      'pasta',
+      'noodle',
+      'spaghetti',
+      'penne',
+      'lasagne',
+      'lasagna',
+      'gnocchi',
+      'rice',
+      'risotto',
+      'couscous',
+      'quinoa',
+      'polenta',
+    ])) {
+      return Icons.dinner_dining;
+    }
+    if (has([
+      'oat',
+      'cereal',
+      'muesli',
+      'granola',
+      'grain',
+      'barley',
+      'bran',
+      'porridge',
+    ])) {
+      return Icons.grain;
+    }
+    if (has([
+      'milk',
+      'cheese',
+      'yogurt',
+      'yoghurt',
+      'butter',
+      'cream',
+      'dairy',
+      'whey',
+      'cheddar',
+      'mozzarella',
+      'feta',
+      'ricotta',
+      'custard',
+    ])) {
+      return Icons.water_drop;
+    }
+    if (has([
+      'nut',
+      'almond',
+      'walnut',
+      'cashew',
+      'peanut',
+      'pistachio',
+      'pecan',
+      'hazelnut',
+      'macadamia',
+      'seed',
+      'chia',
+      'tahini',
+    ])) {
+      return Icons.grain;
+    }
+    if (has([
+      'burger',
+      'pizza',
+      'chips',
+      'fries',
+      'hot dog',
+      'kebab',
+      'taco',
+      'burrito',
+      'nugget',
+      'takeaway',
+      'takeout',
+    ])) {
+      return Icons.fastfood;
+    }
+    if (has([
+      'cake',
+      'cookie',
+      'biscuit',
+      'chocolate',
+      'candy',
+      'sweet',
+      'dessert',
+      'ice cream',
+      'gelato',
+      'pudding',
+      'brownie',
+      'donut',
+      'doughnut',
+      'tart',
+      'muffin',
+      'scone',
+      'waffle',
+      'pancake',
+      'lolly',
+      'lollies',
+    ])) {
+      return Icons.cake;
+    }
+    if (has(['soup', 'broth', 'stew', 'chowder', 'ramen', 'pho', 'laksa'])) {
+      return Icons.soup_kitchen;
+    }
+    if (has([
+      'oil',
+      'dressing',
+      'sauce',
+      'mayonnaise',
+      'ketchup',
+      'mustard',
+      'vinegar',
+      'pesto',
+      'hummus',
+      'jam',
+      'honey',
+      'syrup',
+      'spread',
+      'vegemite',
+      'marmite',
+    ])) {
+      return Icons.opacity;
+    }
+    if (has(['protein', 'supplement', 'powder', 'creatine'])) {
+      return Icons.fitness_center;
+    }
     return Icons.restaurant;
   }
 }

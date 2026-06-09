@@ -35,7 +35,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => RecipeDetailScreen(recipeId: id, recipeName: name.trim()),
+        builder: (_) =>
+            RecipeDetailScreen(recipeId: id, recipeName: name.trim()),
       ),
     );
     _loadRecipes();
@@ -54,7 +55,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           textCapitalization: TextCapitalization.sentences,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, controller.text),
             child: const Text('Create'),
@@ -92,8 +96,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListTile(
             leading: const Icon(Icons.local_fire_department_outlined),
             title: const Text('Daily calorie target'),
-            trailing: Text('${diary.currentGoal} kcal',
-                style: theme.textTheme.bodyMedium),
+            trailing: Text(
+              '${diary.currentGoal} kcal',
+              style: theme.textTheme.bodyMedium,
+            ),
             onTap: () => _editInt(
               context,
               title: 'Daily calorie target',
@@ -105,8 +111,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListTile(
             leading: const Icon(Icons.water_drop_outlined),
             title: const Text('Daily water target'),
-            trailing: Text('${diary.waterTargetMl} ml',
-                style: theme.textTheme.bodyMedium),
+            trailing: Text(
+              '${diary.waterTargetMl} ml',
+              style: theme.textTheme.bodyMedium,
+            ),
             onTap: () => _editInt(
               context,
               title: 'Daily water target',
@@ -119,7 +127,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: const Icon(Icons.local_drink_outlined),
             title: const Text('Water vessels'),
             subtitle: Text(
-                '${diary.vessels.length} vessel${diary.vessels.length == 1 ? '' : 's'} configured'),
+              '${diary.vessels.length} vessel${diary.vessels.length == 1 ? '' : 's'} configured',
+            ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(
               context,
@@ -144,12 +153,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.menu_book_outlined,
-                      size: 48, color: theme.colorScheme.outlineVariant),
+                  Icon(
+                    Icons.menu_book_outlined,
+                    size: 48,
+                    color: theme.colorScheme.outlineVariant,
+                  ),
                   const SizedBox(height: 8),
-                  Text('No recipes yet',
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  Text(
+                    'No recipes yet',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ),
             )
@@ -199,7 +214,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () {
               final val = int.tryParse(controller.text);
@@ -222,11 +239,12 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Text(title,
-          style: Theme.of(context)
-              .textTheme
-              .labelMedium
-              ?.copyWith(color: Theme.of(context).colorScheme.primary)),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
     );
   }
 }
