@@ -1,5 +1,11 @@
-# Raw food data sources — large, not needed for the app
-data/
+# Data pipeline — virtualenv and raw source downloads (re-downloadable, too large for git)
+data/.venv/
+data/ausnut/**
+data/nz-food-composition/**
+data/usda/**
+data/open-food-facts-nz/*.csv
+data/open-food-facts-nz/*.json
+data/open-food-facts-nz/*.gz
 
 # Keystores — never commit these
 *.keystore
