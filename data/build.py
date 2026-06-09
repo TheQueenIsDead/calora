@@ -277,7 +277,7 @@ def import_off_apac(conn: sqlite3.Connection) -> int:
 # ---------------------------------------------------------------------------
 
 def import_usda(conn: sqlite3.Connection) -> int:
-    base = ROOT / "usda" / "foundation"
+    base = ROOT / "usda"
     if not (base / "food.csv").exists():
         raise FileNotFoundError(f"{base / 'food.csv'}\n  Run: task usda")
 
