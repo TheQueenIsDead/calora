@@ -1,11 +1,15 @@
 # Data pipeline — virtualenv and raw source downloads (re-downloadable, too large for git)
 data/.venv/
-data/ausnut/**
-data/nzfc/**
-data/usda/**
-data/open-food-facts-nz/*.csv
-data/open-food-facts-nz/*.json
-data/open-food-facts-nz/*.gz
+data/ausnut/*
+!data/ausnut/.gitkeep
+data/nzfc/*
+!data/nzfc/.gitkeep
+data/usda/*
+!data/usda/.gitkeep
+data/off/*
+!data/off/.gitkeep
+data/nz-food-composition/
+data/open-food-facts-nz/
 
 # Keystores — never commit these
 *.keystore
