@@ -1,7 +1,7 @@
 # Data pipeline — virtualenv and raw source downloads (re-downloadable, too large for git)
 data/.venv/
 data/ausnut/**
-data/nz-food-composition/**
+data/nzfc/**
 data/usda/**
 data/open-food-facts-nz/*.csv
 data/open-food-facts-nz/*.json

@@ -151,7 +151,7 @@ def import_ausnut(conn: sqlite3.Connection) -> int:
 # ---------------------------------------------------------------------------
 
 def import_nz_composition(conn: sqlite3.Connection) -> int:
-    path = ROOT / "nz-food-composition" / "concise-14-edition.xlsx"
+    path = ROOT / "nzfc" / "concise-14-edition.xlsx"
     wb = openpyxl.load_workbook(path, read_only=True)
     ws = wb.active
 

@@ -29,7 +29,7 @@ tasks:
 
   # ── Source data downloads ─────────────────────────────────────────────────
 
-  download-ausnut:
+  ausnut:
     desc: "Download and extract AUSNUT 2023 Excel files (~11 MB)"
     cmds:
       - mkdir -p ausnut
@@ -38,9 +38,12 @@ tasks:
       - unzip -j -o ausnut/AUSNUT2023.zip -d ausnut
       - rm ausnut/AUSNUT2023.zip
 
-  # NZ Food Composition 14th Ed: https://www.foodcomposition.co.nz/foodfiles/
-  # Download concise-14-edition.xlsx → place in nz-food-composition/
-  # (URL requires a form submission — download manually)
+  nzfc:
+    desc: "Download NZ Food Composition 14th edition Excel file"
+    cmds:
+      - mkdir -p nzfc
+      - curl -L -o nzfc/concise-14-edition.xlsx
+          "https://www.foodcomposition.co.nz/downloads/concise-14-edition.xlsx"
 
   # USDA Foundation Foods: https://fdc.nal.usda.gov/data-downloads.html
   # Download FoodData_Central_foundation_food_csv_<date>.zip → extract into usda/foundation/
