@@ -16,17 +16,15 @@ tasks:
     cmds:
       - uv run python open-food-facts-nz/fetch_nz_products.py
 
-  download-off-dump:
-    desc: "Download the full Open Food Facts CSV dump (~9 GB compressed)"
+  off:
+    desc: "Download full OFF dump, filter to NZ/AU CSVs, then delete the dump (~9 GB download)"
     env:
       URL: https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz
+      DUMP: open-food-facts-nz/en.openfoodfacts.org.products.csv.gz
     cmds:
-      - curl -L --continue-at - -o open-food-facts-nz/en.openfoodfacts.org.products.csv.gz "$URL"
-
-  filter-off-nz:
-    desc: "Extract NZ and AU products from the full OFF dump (run after download-off-dump)"
-    cmds:
+      - curl -L --continue-at - -o "$DUMP" "$URL"
       - uv run python open-food-facts-nz/filter_nz.py
+      - rm "$DUMP"
 
   # ── Source data downloads ─────────────────────────────────────────────────
 
@@ -76,6 +74,5 @@ tasks:
   all-from-dump:
     desc: "Full pipeline using OFF full dump (download → filter → build DB)"
     cmds:
-      - task: download-off-dump
-      - task: filter-off-nz
+      - task: off
       - task: build
