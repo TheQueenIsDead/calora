@@ -205,6 +205,8 @@ def import_nz_composition(conn: sqlite3.Connection) -> int:
 
 def import_off_apac(conn: sqlite3.Connection) -> int:
     path = ROOT / "off" / "apac.en.openfoodfacts.org.products.csv"
+    if not path.exists():
+        raise FileNotFoundError(f"{path}\n  Run: task off && task filter")
     count = 0
     csv.field_size_limit(sys.maxsize)
 
