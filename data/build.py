@@ -22,6 +22,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 
+import duckdb
 import openpyxl
 
 OFF_API      = "https://world.openfoodfacts.org/api/v2/product"
@@ -275,10 +276,64 @@ def _insert_off(conn: sqlite3.Connection, barcode: str, name: str,
     })
 
 
+def _load_parquet_nutrition(parquet_path: Path) -> dict:
+    """Load NZ/AU nutrition from the Parquet file into a barcode-keyed dict.
+    Returns {} if the file doesn't exist (API-only fallback still works).
+    """
+    if not parquet_path.exists():
+        print(f"  Parquet not found at {parquet_path} — will use API for missing nutrition", flush=True)
+        return {}
+    print(f"  Loading nutrition from {parquet_path.name} …", end=" ", flush=True)
+    con = duckdb.connect()
+    rows = con.execute(f"""
+        SELECT
+            code,
+            brands,
+            serving_size,
+            serving_quantity,
+            [x for x in nutriments if x.name = 'energy-kcal'][1]['100g']   AS kcal,
+            [x for x in nutriments if x.name = 'fat'][1]['100g']            AS fat,
+            [x for x in nutriments if x.name = 'saturated-fat'][1]['100g'] AS sat_fat,
+            [x for x in nutriments if x.name = 'carbohydrates'][1]['100g'] AS carbs,
+            [x for x in nutriments if x.name = 'sugars'][1]['100g']        AS sugars,
+            [x for x in nutriments if x.name = 'fiber'][1]['100g']         AS fiber,
+            [x for x in nutriments if x.name = 'proteins'][1]['100g']      AS protein,
+            [x for x in nutriments if x.name = 'sodium'][1]['100g']        AS sodium
+        FROM '{parquet_path}'
+        WHERE (list_contains(countries_tags, 'en:new-zealand')
+            OR list_contains(countries_tags, 'en:australia'))
+          AND len(nutriments) > 0
+    """).fetchall()
+    con.close()
+    cache = {}
+    for code, brands, serving_size, serving_qty, kcal, fat, sat_fat, carbs, sugars, fiber, protein, sodium in rows:
+        if not code or not kcal or kcal <= 0:
+            continue
+        try:
+            serving_grams = float(serving_qty) if serving_qty else None
+        except (TypeError, ValueError):
+            serving_grams = None
+        cache[code] = (
+            (brands or "").strip() or None,
+            round(kcal, 2),
+            fat or 0, sat_fat or 0, carbs or 0,
+            sugars or 0, fiber or 0, protein or 0, sodium or 0,
+            (serving_size or "").strip() or None,
+            serving_grams,
+            None,  # image_url not needed from parquet
+        )
+    print(f"{len(cache):,} products loaded", flush=True)
+    return cache
+
+
 def import_off_apac(conn: sqlite3.Connection) -> int:
-    csv_path = ROOT / "off" / "apac.en.openfoodfacts.org.products.csv"
+    csv_path     = ROOT / "off" / "apac.en.openfoodfacts.org.products.csv"
+    parquet_path = ROOT / "off" / "food.parquet"
+
     if not csv_path.exists():
         raise FileNotFoundError(f"{csv_path}\n  Run: task off && task filter")
+
+    parquet = _load_parquet_nutrition(parquet_path)
 
     def _f(v: str) -> float:
         try:
@@ -287,9 +342,10 @@ def import_off_apac(conn: sqlite3.Connection) -> int:
             return 0.0
 
     count        = 0
+    rows_seen    = 0
     api_calls    = 0
     api_enriched = 0
-    rows_seen    = 0
+    LOG_EVERY    = 5_000
     COMMIT_EVERY = 500
     csv.field_size_limit(sys.maxsize)
 
@@ -305,7 +361,7 @@ def import_off_apac(conn: sqlite3.Connection) -> int:
             kcal = _f(kcal_str) if kcal_str else _f(row.get("energy-kj_100g", "")) * KJ_TO_KCAL
 
             if kcal > 0:
-                # CSV has nutrition — insert directly.
+                # 1. CSV has nutrition — use it directly.
                 try:
                     serving_grams = float(row.get("serving_quantity") or "") or None
                 except ValueError:
@@ -328,15 +384,25 @@ def import_off_apac(conn: sqlite3.Connection) -> int:
                 count += 1
 
             else:
-                # No nutrition in CSV — check if already enriched in the DB.
+                # No nutrition in CSV.
                 existing = conn.execute(
                     "SELECT 1 FROM foods WHERE id = ? AND calories_per_100g > 0",
                     (f"off_{barcode}",)
                 ).fetchone()
+
                 if existing:
-                    count += 1  # already enriched from a previous build
+                    # 2. Already enriched in DB from a previous build — keep it.
+                    count += 1
+
+                elif barcode in parquet:
+                    # 3. Found in parquet — use that data.
+                    brand, kcal_p, fat, sat_fat, carbs, sugars, fiber, protein, sodium, serving_size, serving_grams, image_url = parquet[barcode]
+                    _insert_off(conn, barcode, name, brand, kcal_p, fat, sat_fat, carbs, sugars, fiber, protein, sodium, serving_size, serving_grams, image_url)
+                    count += 1
+
                 else:
-                    # Not in DB — ask the API (politely).
+                    # 4. Not in CSV, DB, or parquet — fall back to API.
+                    print(f"  API fallback: {barcode} ({name}) — not in parquet", flush=True)
                     time.sleep(_API_DELAY)
                     api_calls += 1
                     result = _fetch_off_nutrition(barcode)
@@ -347,17 +413,19 @@ def import_off_apac(conn: sqlite3.Connection) -> int:
 
             if rows_seen % COMMIT_EVERY == 0:
                 conn.commit()
+
+            if rows_seen % LOG_EVERY == 0:
                 total = conn.execute("SELECT COUNT(*) FROM foods WHERE source='off_nz'").fetchone()[0]
                 print(
-                    f"  {rows_seen:>6,} rows  |  {total:,} in DB"
-                    f"  |  {api_calls:,} API calls  |  {api_enriched:,} enriched",
+                    f"  {rows_seen:>6,} / ~85,500 rows  |  {total:,} in DB"
+                    f"  |  {api_calls} API calls ({api_enriched} enriched)",
                     flush=True,
                 )
 
     conn.commit()
     print(
-        f"  Done — {rows_seen:,} rows processed"
-        f"  |  {api_calls:,} API calls  |  {api_enriched:,} enriched",
+        f"  Done — {rows_seen:,} rows  |  {count:,} inserted"
+        f"  |  {api_calls} API calls ({api_enriched} enriched from API)",
         flush=True,
     )
     return count
