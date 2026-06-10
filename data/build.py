@@ -418,14 +418,14 @@ def import_off_apac(conn: sqlite3.Connection) -> int:
                 total = conn.execute("SELECT COUNT(*) FROM foods WHERE source='off_nz'").fetchone()[0]
                 print(
                     f"  {rows_seen:>6,} / ~85,500 rows  |  {total:,} in DB"
-                    f"  |  {api_calls} API calls ({api_enriched} enriched)",
+                    f"  |  API Fallback ({api_calls})",
                     flush=True,
                 )
 
     conn.commit()
     print(
         f"  Done — {rows_seen:,} rows  |  {count:,} inserted"
-        f"  |  {api_calls} API calls ({api_enriched} enriched from API)",
+        f"  |  API Fallback ({api_calls}, {api_enriched} enriched)",
         flush=True,
     )
     return count
