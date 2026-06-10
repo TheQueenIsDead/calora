@@ -286,19 +286,21 @@ def import_off_parquet(conn: sqlite3.Connection) -> int:
     rows = con.execute(f"""
         SELECT
             code,
-            product_name[1].text                                              AS name,
+            product_name[1].text                                                AS name,
             brands,
             serving_size,
             serving_quantity,
-            [x for x in nutriments if x.name = 'energy-kcal'][1]['100g']    AS kcal,
-            [x for x in nutriments if x.name = 'fat'][1]['100g']             AS fat,
-            [x for x in nutriments if x.name = 'saturated-fat'][1]['100g']  AS sat_fat,
-            [x for x in nutriments if x.name = 'carbohydrates'][1]['100g']  AS carbs,
-            [x for x in nutriments if x.name = 'sugars'][1]['100g']         AS sugars,
-            [x for x in nutriments if x.name = 'fiber'][1]['100g']          AS fiber,
-            [x for x in nutriments if x.name = 'proteins'][1]['100g']       AS protein,
-            [x for x in nutriments if x.name = 'sodium'][1]['100g']         AS sodium,
-            list_contains(states_tags, 'en:nutrition-facts-completed')       AS nutrition_complete
+            coalesce(
+                nullif([x for x in nutriments if x.name = 'energy-kcal'][1]['100g'], 0),
+                [x for x in nutriments if x.name = 'energy-kj'][1]['100g'] / 4.184
+            )                                                                   AS kcal,
+            [x for x in nutriments if x.name = 'fat'][1]['100g']               AS fat,
+            [x for x in nutriments if x.name = 'saturated-fat'][1]['100g']     AS sat_fat,
+            [x for x in nutriments if x.name = 'carbohydrates'][1]['100g']     AS carbs,
+            [x for x in nutriments if x.name = 'sugars'][1]['100g']            AS sugars,
+            [x for x in nutriments if x.name = 'fiber'][1]['100g']             AS fiber,
+            [x for x in nutriments if x.name = 'proteins'][1]['100g']          AS protein,
+            [x for x in nutriments if x.name = 'sodium'][1]['100g']            AS sodium
         FROM '{parquet_path}'
         WHERE (list_contains(countries_tags, 'en:new-zealand')
             OR list_contains(countries_tags, 'en:australia'))
@@ -309,22 +311,19 @@ def import_off_parquet(conn: sqlite3.Connection) -> int:
     print(f"{len(rows):,} products", flush=True)
 
     count        = 0
-    api_calls    = 0
-    api_enriched = 0
+    no_nutrition = 0
     total_rows   = len(rows)
     LOG_EVERY    = 5_000
     COMMIT_EVERY = 500
 
     for i, (code, name, brands, serving_size, serving_qty,
-            kcal, fat, sat_fat, carbs, sugars, fiber, protein, sodium,
-            nutrition_complete) in enumerate(rows, 1):
+            kcal, fat, sat_fat, carbs, sugars, fiber, protein, sodium) in enumerate(rows, 1):
 
         name = (name or "").strip()
         if not code or not name:
             continue
 
         if kcal and kcal > 0:
-            # Parquet has nutrition — insert directly.
             try:
                 serving_grams = float(serving_qty) if serving_qty else None
             except (TypeError, ValueError):
@@ -341,25 +340,14 @@ def import_off_parquet(conn: sqlite3.Connection) -> int:
             count += 1
 
         else:
-            # No nutrition in parquet.
             existing = conn.execute(
                 "SELECT 1 FROM foods WHERE id = ? AND calories_per_100g > 0",
                 (f"off_{code}",)
             ).fetchone()
-
             if existing:
                 count += 1  # enriched in a previous build — keep it
-
-            elif nutrition_complete:
-                # OFF says nutrition is complete — fall back to API.
-                print(f"  API Fallback: {code} ({name})", flush=True)
-                time.sleep(_API_DELAY)
-                api_calls += 1
-                result = _fetch_off_nutrition(code)
-                if result:
-                    _insert_off(conn, code, name, *result)
-                    api_enriched += 1
-                    count += 1
+            else:
+                no_nutrition += 1
 
         if i % COMMIT_EVERY == 0:
             conn.commit()
@@ -368,14 +356,14 @@ def import_off_parquet(conn: sqlite3.Connection) -> int:
             total_db = conn.execute("SELECT COUNT(*) FROM foods WHERE source='off_nz'").fetchone()[0]
             print(
                 f"  {i:>6,} / {total_rows:,}  |  {total_db:,} in DB"
-                f"  |  API Fallback ({api_calls})",
+                f"  |  {no_nutrition:,} missing nutrition",
                 flush=True,
             )
 
     conn.commit()
     print(
         f"  Done — {total_rows:,} rows  |  {count:,} inserted"
-        f"  |  API Fallback ({api_calls}, {api_enriched} enriched)",
+        f"  |  {no_nutrition:,} skipped (no nutrition in parquet)",
         flush=True,
     )
     return count
