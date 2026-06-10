@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.3.0](https://github.com/TheQueenIsDead/calora/compare/v1.2.0...v1.3.0) (2026-06-10)
+
+
+### Features
+
+* bump seed DB to v4 with 77,952 foods including full OFF APAC dataset ([7b62f44](https://github.com/TheQueenIsDead/calora/commit/7b62f440b06e0974379d969bd52c825125c24c43))
+* **data:** include zero-calorie products (water, tea, diet drinks) ([0110412](https://github.com/TheQueenIsDead/calora/commit/01104126425e06e92009ba0a8b1988736f420e90))
+* **data:** maintain seed DB incrementally with migrations ([86bc1e3](https://github.com/TheQueenIsDead/calora/commit/86bc1e33505f9a6e2e610d309f769f69a1183da2))
+* **data:** show before/after record counts in build script ([c746805](https://github.com/TheQueenIsDead/calora/commit/c74680540f56827da0dc0e8a1c24fdd6db3d1814))
+* **data:** use parquet as nutrition fallback before API in OFF import ([6ea4013](https://github.com/TheQueenIsDead/calora/commit/6ea401316b8fb90c6d644a7be0ba5fc3314da08f))
+* expand seed DB to 19,305 foods, bump to version 3 ([6d2f4b9](https://github.com/TheQueenIsDead/calora/commit/6d2f4b9ff9499a1599412b27c994f3c64818a261))
+
+
+### Bug Fixes
+
+* **data:** commit every 500 rows with progress logging during OFF enrichment ([b4181c3](https://github.com/TheQueenIsDead/calora/commit/b4181c3b3c3875b9089142e4a21e8d87ebe5cc9c))
+* **data:** convert energy-kj to kcal in parquet query, remove API fallback ([92abd27](https://github.com/TheQueenIsDead/calora/commit/92abd2792ba1aadf6bb6b7a82bfc16e036a9f464))
+* **data:** exclude products tagged nutriscore-missing-nutrition-data-energy ([a1974fc](https://github.com/TheQueenIsDead/calora/commit/a1974fc81edd84458709790899c9591fbc1d33c8))
+* **data:** extract usda files flat into usda/ not usda/foundation/ ([e275a0c](https://github.com/TheQueenIsDead/calora/commit/e275a0c9da32ea721b5bcc8f3462050b5f39152c))
+* **data:** fail loudly if APAC CSV missing, add before/after diff to build ([1feed0a](https://github.com/TheQueenIsDead/calora/commit/1feed0ad87dddf76225bd0c4deaeb8e0a13d9f0f))
+* **data:** hardcode generates paths and fix usda url and build errors ([3e90850](https://github.com/TheQueenIsDead/calora/commit/3e90850b38081077f10ee0fefa84eb4f4ca8678c))
+* **data:** replace generates with status for reliable skip detection ([541a087](https://github.com/TheQueenIsDead/calora/commit/541a087d9490a818f54f91be33a8ab16faccbf76))
+* initialize Flutter binding before providers access SharedPreferences ([c65b92c](https://github.com/TheQueenIsDead/calora/commit/c65b92c469e15917dbb19ecd797f71277d6a86db))
+* reload trends chart when diary entries change ([37998e7](https://github.com/TheQueenIsDead/calora/commit/37998e7db45f933509edc068e804192466967cc8))
+* resolve three architectural issues ([a3a13cc](https://github.com/TheQueenIsDead/calora/commit/a3a13cc2531668c83b0ac52d69f32830bcfacecf))
+* sort FTS results by relevance rank, not source priority ([5c58202](https://github.com/TheQueenIsDead/calora/commit/5c582024cfe20de717d7dec0613e2c36cb7fa325))
+
 ## [1.2.0](https://github.com/TheQueenIsDead/calora/compare/v1.1.0...v1.2.0) (2026-06-09)
 
 
