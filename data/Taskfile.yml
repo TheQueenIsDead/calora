@@ -28,15 +28,15 @@ tasks:
       - mkdir -p nzfc
       - curl -L -o nzfc/concise-14-edition.xlsx "{{.URL}}"
 
-  off:
-    desc: "Download full Open Food Facts dump (~9 GB compressed)"
+  parquet:
+    desc: "Download Open Food Facts full product database in Parquet format"
     vars:
-      URL: https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz
+      URL: "" # TODO: set the URL where you downloaded food.parquet from
     status:
-      - test -f off/en.openfoodfacts.org.products.csv.gz
+      - test -f off/food.parquet
     cmds:
       - mkdir -p off
-      - curl -L --continue-at - -o off/en.openfoodfacts.org.products.csv.gz "{{.URL}}"
+      - curl -L --continue-at - -o off/food.parquet "{{.URL}}"
 
   usda:
     desc: "Download and extract USDA Foundation Foods CSV files (~32 MB unzipped)"
@@ -49,16 +49,6 @@ tasks:
       - curl -L -o usda/foundation_food.zip "{{.URL}}"
       - unzip -j -o usda/foundation_food.zip -d usda
 
-  # ── Process ───────────────────────────────────────────────────────────────
-
-  filter:
-    desc: "Filter OFF dump to APAC CSV using DuckDB, then delete dump"
-    status:
-      - test -f off/apac.en.openfoodfacts.org.products.csv
-    cmds:
-      - uv run python filter.py
-      - rm off/en.openfoodfacts.org.products.csv.gz
-
   # ── Build ─────────────────────────────────────────────────────────────────
 
   build:
@@ -69,8 +59,7 @@ tasks:
   # ── Pipeline ──────────────────────────────────────────────────────────────
 
   all:
-    desc: "Full pipeline: download all sources, process, build DB"
-    deps: [ausnut, nzfc, off, usda]
+    desc: "Full pipeline: download all sources, build DB"
+    deps: [ausnut, nzfc, parquet, usda]
     cmds:
-      - task: filter
       - task: build
