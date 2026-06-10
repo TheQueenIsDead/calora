@@ -306,6 +306,7 @@ def import_off_parquet(conn: sqlite3.Connection) -> int:
             OR list_contains(countries_tags, 'en:australia'))
           AND code IS NOT NULL
           AND len(product_name) > 0
+          AND NOT list_contains(misc_tags, 'en:nutriscore-missing-nutrition-data-energy')
     """).fetchall()
     con.close()
     print(f"{len(rows):,} products", flush=True)
