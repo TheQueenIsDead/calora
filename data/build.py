@@ -324,7 +324,7 @@ def import_off_parquet(conn: sqlite3.Connection) -> int:
         if not code or not name:
             continue
 
-        if kcal and kcal > 0:
+        if kcal is not None:
             try:
                 serving_grams = float(serving_qty) if serving_qty else None
             except (TypeError, ValueError):
@@ -342,7 +342,7 @@ def import_off_parquet(conn: sqlite3.Connection) -> int:
 
         else:
             existing = conn.execute(
-                "SELECT 1 FROM foods WHERE id = ? AND calories_per_100g > 0",
+                "SELECT 1 FROM foods WHERE id = ? AND calories_per_100g >= 0",
                 (f"off_{code}",)
             ).fetchone()
             if existing:
