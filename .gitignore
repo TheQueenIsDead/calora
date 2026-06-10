@@ -10,6 +10,7 @@ data/off/*
 !data/off/.gitkeep
 data/nz-food-composition/
 data/open-food-facts-nz/
+data/*.db
 
 # Keystores — never commit these
 *.keystore
