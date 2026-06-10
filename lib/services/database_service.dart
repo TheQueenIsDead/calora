@@ -498,7 +498,7 @@ class DatabaseService {
         SELECT f.* FROM foods_fts
         JOIN foods f ON f.rowid = foods_fts.rowid
         WHERE foods_fts MATCH ?
-        ORDER BY CASE WHEN f.source IN ('ausnut','nz','usda') THEN 0 ELSE 1 END, rank
+        ORDER BY rank
         LIMIT 30
       ''',
         [ftsQuery],
