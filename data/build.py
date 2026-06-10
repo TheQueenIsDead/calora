@@ -25,7 +25,7 @@ from pathlib import Path
 import openpyxl
 
 OFF_API      = "https://world.openfoodfacts.org/api/v2/product"
-_API_DELAY   = 0.5   # seconds between API calls — be polite
+_API_DELAY   = 0.1   # seconds between API calls (reduce after initial enrichment run)
 
 ROOT = Path(__file__).parent
 OUT = ROOT.parent / "assets" / "calora_seed.db"
@@ -286,8 +286,11 @@ def import_off_apac(conn: sqlite3.Connection) -> int:
         except ValueError:
             return 0.0
 
-    count      = 0
-    api_calls  = 0
+    count        = 0
+    api_calls    = 0
+    api_enriched = 0
+    rows_seen    = 0
+    COMMIT_EVERY = 500
     csv.field_size_limit(sys.maxsize)
 
     with open(csv_path, encoding="utf-8", errors="replace") as f:
@@ -297,6 +300,7 @@ def import_off_apac(conn: sqlite3.Connection) -> int:
             if not barcode or not name:
                 continue
 
+            rows_seen += 1
             kcal_str = row.get("energy-kcal_100g", "").strip()
             kcal = _f(kcal_str) if kcal_str else _f(row.get("energy-kj_100g", "")) * KJ_TO_KCAL
 
@@ -330,7 +334,7 @@ def import_off_apac(conn: sqlite3.Connection) -> int:
                     (f"off_{barcode}",)
                 ).fetchone()
                 if existing:
-                    pass  # already enriched from a previous build, keep it
+                    count += 1  # already enriched from a previous build
                 else:
                     # Not in DB — ask the API (politely).
                     time.sleep(_API_DELAY)
@@ -338,11 +342,24 @@ def import_off_apac(conn: sqlite3.Connection) -> int:
                     result = _fetch_off_nutrition(barcode)
                     if result:
                         _insert_off(conn, barcode, name, *result)
+                        api_enriched += 1
                         count += 1
 
-    if api_calls:
-        print(f"  ({api_calls:,} API lookups for missing nutrition)", flush=True)
+            if rows_seen % COMMIT_EVERY == 0:
+                conn.commit()
+                total = conn.execute("SELECT COUNT(*) FROM foods WHERE source='off_nz'").fetchone()[0]
+                print(
+                    f"  {rows_seen:>6,} rows  |  {total:,} in DB"
+                    f"  |  {api_calls:,} API calls  |  {api_enriched:,} enriched",
+                    flush=True,
+                )
 
+    conn.commit()
+    print(
+        f"  Done — {rows_seen:,} rows processed"
+        f"  |  {api_calls:,} API calls  |  {api_enriched:,} enriched",
+        flush=True,
+    )
     return count
 
 
