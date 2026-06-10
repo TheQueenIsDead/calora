@@ -276,155 +276,105 @@ def _insert_off(conn: sqlite3.Connection, barcode: str, name: str,
     })
 
 
-def _load_parquet_nutrition(parquet_path: Path) -> dict:
-    """Load NZ/AU nutrition from the Parquet file into a barcode-keyed dict.
-    Returns {} if the file doesn't exist (API-only fallback still works).
-    """
+def import_off_parquet(conn: sqlite3.Connection) -> int:
+    parquet_path = ROOT / "off" / "food.parquet"
     if not parquet_path.exists():
-        print(f"  Parquet not found at {parquet_path} — will use API for missing nutrition", flush=True)
-        return {}
-    print(f"  Loading nutrition from {parquet_path.name} …", end=" ", flush=True)
+        raise FileNotFoundError(f"{parquet_path}\n  Run: task parquet")
+
+    print(f"  Querying {parquet_path.name} for NZ/AU products …", end=" ", flush=True)
     con = duckdb.connect()
     rows = con.execute(f"""
         SELECT
             code,
+            product_name[1].text                                              AS name,
             brands,
             serving_size,
             serving_quantity,
-            [x for x in nutriments if x.name = 'energy-kcal'][1]['100g']   AS kcal,
-            [x for x in nutriments if x.name = 'fat'][1]['100g']            AS fat,
-            [x for x in nutriments if x.name = 'saturated-fat'][1]['100g'] AS sat_fat,
-            [x for x in nutriments if x.name = 'carbohydrates'][1]['100g'] AS carbs,
-            [x for x in nutriments if x.name = 'sugars'][1]['100g']        AS sugars,
-            [x for x in nutriments if x.name = 'fiber'][1]['100g']         AS fiber,
-            [x for x in nutriments if x.name = 'proteins'][1]['100g']      AS protein,
-            [x for x in nutriments if x.name = 'sodium'][1]['100g']        AS sodium
+            [x for x in nutriments if x.name = 'energy-kcal'][1]['100g']    AS kcal,
+            [x for x in nutriments if x.name = 'fat'][1]['100g']             AS fat,
+            [x for x in nutriments if x.name = 'saturated-fat'][1]['100g']  AS sat_fat,
+            [x for x in nutriments if x.name = 'carbohydrates'][1]['100g']  AS carbs,
+            [x for x in nutriments if x.name = 'sugars'][1]['100g']         AS sugars,
+            [x for x in nutriments if x.name = 'fiber'][1]['100g']          AS fiber,
+            [x for x in nutriments if x.name = 'proteins'][1]['100g']       AS protein,
+            [x for x in nutriments if x.name = 'sodium'][1]['100g']         AS sodium,
+            list_contains(states_tags, 'en:nutrition-facts-completed')       AS nutrition_complete
         FROM '{parquet_path}'
         WHERE (list_contains(countries_tags, 'en:new-zealand')
             OR list_contains(countries_tags, 'en:australia'))
-          AND len(nutriments) > 0
+          AND code IS NOT NULL
+          AND len(product_name) > 0
     """).fetchall()
     con.close()
-    cache = {}
-    for code, brands, serving_size, serving_qty, kcal, fat, sat_fat, carbs, sugars, fiber, protein, sodium in rows:
-        if not code or not kcal or kcal <= 0:
-            continue
-        try:
-            serving_grams = float(serving_qty) if serving_qty else None
-        except (TypeError, ValueError):
-            serving_grams = None
-        cache[code] = (
-            (brands or "").strip() or None,
-            round(kcal, 2),
-            fat or 0, sat_fat or 0, carbs or 0,
-            sugars or 0, fiber or 0, protein or 0, sodium or 0,
-            (serving_size or "").strip() or None,
-            serving_grams,
-            None,  # image_url not needed from parquet
-        )
-    print(f"{len(cache):,} products loaded", flush=True)
-    return cache
-
-
-def import_off_apac(conn: sqlite3.Connection) -> int:
-    csv_path     = ROOT / "off" / "apac.en.openfoodfacts.org.products.csv"
-    parquet_path = ROOT / "off" / "food.parquet"
-
-    if not csv_path.exists():
-        raise FileNotFoundError(f"{csv_path}\n  Run: task off && task filter")
-
-    parquet = _load_parquet_nutrition(parquet_path)
-
-    def _f(v: str) -> float:
-        try:
-            return float(v) if v else 0.0
-        except ValueError:
-            return 0.0
+    print(f"{len(rows):,} products", flush=True)
 
     count        = 0
-    rows_seen    = 0
     api_calls    = 0
     api_enriched = 0
+    total_rows   = len(rows)
     LOG_EVERY    = 5_000
     COMMIT_EVERY = 500
-    csv.field_size_limit(sys.maxsize)
 
-    with open(csv_path, encoding="utf-8", errors="replace") as f:
-        for row in csv.DictReader(f):
-            barcode = (row.get("code") or "").strip()
-            name    = (row.get("product_name") or "").strip()
-            if not barcode or not name:
-                continue
+    for i, (code, name, brands, serving_size, serving_qty,
+            kcal, fat, sat_fat, carbs, sugars, fiber, protein, sodium,
+            nutrition_complete) in enumerate(rows, 1):
 
-            rows_seen += 1
-            kcal_str = row.get("energy-kcal_100g", "").strip()
-            kcal = _f(kcal_str) if kcal_str else _f(row.get("energy-kj_100g", "")) * KJ_TO_KCAL
+        name = (name or "").strip()
+        if not code or not name:
+            continue
 
-            if kcal > 0:
-                # 1. CSV has nutrition — use it directly.
-                try:
-                    serving_grams = float(row.get("serving_quantity") or "") or None
-                except ValueError:
-                    serving_grams = None
-                _insert_off(
-                    conn, barcode, name,
-                    (row.get("brands") or "").strip() or None,
-                    kcal,
-                    _f(row.get("fat_100g", "")),
-                    _f(row.get("saturated-fat_100g", "")),
-                    _f(row.get("carbohydrates_100g", "")),
-                    _f(row.get("sugars_100g", "")),
-                    _f(row.get("fiber_100g", "")),
-                    _f(row.get("proteins_100g", "")),
-                    _f(row.get("sodium_100g", "")),
-                    (row.get("serving_size") or "").strip() or None,
-                    serving_grams,
-                    (row.get("image_url") or "").strip() or None,
-                )
-                count += 1
+        if kcal and kcal > 0:
+            # Parquet has nutrition — insert directly.
+            try:
+                serving_grams = float(serving_qty) if serving_qty else None
+            except (TypeError, ValueError):
+                serving_grams = None
+            _insert_off(
+                conn, code, name,
+                (brands or "").strip() or None,
+                round(kcal, 2),
+                fat or 0, sat_fat or 0, carbs or 0,
+                sugars or 0, fiber or 0, protein or 0, sodium or 0,
+                (serving_size or "").strip() or None,
+                serving_grams, None,
+            )
+            count += 1
 
-            else:
-                # No nutrition in CSV.
-                existing = conn.execute(
-                    "SELECT 1 FROM foods WHERE id = ? AND calories_per_100g > 0",
-                    (f"off_{barcode}",)
-                ).fetchone()
+        else:
+            # No nutrition in parquet.
+            existing = conn.execute(
+                "SELECT 1 FROM foods WHERE id = ? AND calories_per_100g > 0",
+                (f"off_{code}",)
+            ).fetchone()
 
-                if existing:
-                    # 2. Already enriched in DB from a previous build — keep it.
+            if existing:
+                count += 1  # enriched in a previous build — keep it
+
+            elif nutrition_complete:
+                # OFF says nutrition is complete — fall back to API.
+                print(f"  API Fallback: {code} ({name})", flush=True)
+                time.sleep(_API_DELAY)
+                api_calls += 1
+                result = _fetch_off_nutrition(code)
+                if result:
+                    _insert_off(conn, code, name, *result)
+                    api_enriched += 1
                     count += 1
 
-                elif barcode in parquet:
-                    # 3. Found in parquet — use that data.
-                    brand, kcal_p, fat, sat_fat, carbs, sugars, fiber, protein, sodium, serving_size, serving_grams, image_url = parquet[barcode]
-                    _insert_off(conn, barcode, name, brand, kcal_p, fat, sat_fat, carbs, sugars, fiber, protein, sodium, serving_size, serving_grams, image_url)
-                    count += 1
+        if i % COMMIT_EVERY == 0:
+            conn.commit()
 
-                else:
-                    # 4. Not in CSV, DB, or parquet — fall back to API.
-                    print(f"  API fallback: {barcode} ({name}) — not in parquet", flush=True)
-                    time.sleep(_API_DELAY)
-                    api_calls += 1
-                    result = _fetch_off_nutrition(barcode)
-                    if result:
-                        _insert_off(conn, barcode, name, *result)
-                        api_enriched += 1
-                        count += 1
-
-            if rows_seen % COMMIT_EVERY == 0:
-                conn.commit()
-
-            if rows_seen % LOG_EVERY == 0:
-                total = conn.execute("SELECT COUNT(*) FROM foods WHERE source='off_nz'").fetchone()[0]
-                print(
-                    f"  {rows_seen:>6,} / ~85,500 rows  |  {total:,} in DB"
-                    f"  |  API Fallback ({api_calls})",
-                    flush=True,
-                )
+        if i % LOG_EVERY == 0:
+            total_db = conn.execute("SELECT COUNT(*) FROM foods WHERE source='off_nz'").fetchone()[0]
+            print(
+                f"  {i:>6,} / {total_rows:,}  |  {total_db:,} in DB"
+                f"  |  API Fallback ({api_calls})",
+                flush=True,
+            )
 
     conn.commit()
     print(
-        f"  Done — {rows_seen:,} rows  |  {count:,} inserted"
+        f"  Done — {total_rows:,} rows  |  {count:,} inserted"
         f"  |  API Fallback ({api_calls}, {api_enriched} enriched)",
         flush=True,
     )
@@ -556,10 +506,10 @@ def main() -> None:
     conn.commit()
     print(f"{n:,} rows")
 
-    print("Importing Open Food Facts APAC …", end=" ", flush=True)
-    n = import_off_apac(conn)
+    print("Importing Open Food Facts APAC (Parquet) …", flush=True)
+    n = import_off_parquet(conn)
     conn.commit()
-    print(f"{n:,} rows")
+    print(f"  {n:,} rows total")
 
     print("Importing USDA Foundation Foods …", end=" ", flush=True)
     n = import_usda(conn)
