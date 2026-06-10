@@ -47,7 +47,7 @@ class DatabaseService {
   // ── DB version constants ──────────────────────────────────────────────────
 
   // Bump this + PRAGMA user_version in build_db.py whenever food data changes.
-  static const _kFoodsVersion = 2;
+  static const _kFoodsVersion = 3;
 
   // ── Connection accessors ──────────────────────────────────────────────────
 
