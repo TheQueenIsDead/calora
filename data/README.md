@@ -1,85 +1,100 @@
-# Calora — Food Data
+# Calora — Food Data Pipeline
 
-This directory contains the tooling and raw data files used to build the bundled
-SQLite database (`assets/calora_seed.db`) that is shipped with the Calora app.
+This directory contains the tooling used to build `assets/calora_seed.db` — the
+bundled SQLite database shipped with the Calora app.
 
-On first launch (or whenever the seed version changes) the app copies this file
-to its private storage directory. The app compares the `user_version` PRAGMA of
-the on-device database against the seed version; if the seed is newer, the device
-database is replaced automatically.
+On first launch (or when the seed version changes) the app copies this file to its
+private storage. It compares `user_version` against `_kFoodsVersion` in
+`database_service.dart`; if the seed is newer the on-device copy is replaced.
 
-**Current seed version: 2**
+**Current seed version: 4 — 77,952 foods**
 
 ---
 
 ## Data sources
 
 ### 1. AUSNUT 2023 — Food Standards Australia New Zealand
-- **Files:** `ausnut/AUSNUT 2023 - All Files/AUSNUT 2023 - Food details.xlsx`
-  and `AUSNUT 2023 - Food nutrient profiles.xlsx`
-- **Records imported:** ~3,720 Australian and New Zealand foods, per-100 g nutrient data
-- **Source:** [FSANZ AUSNUT 2023](https://www.foodstandards.gov.au/science-and-research/food-composition-program/ausnut-2023)
+- **Download:** `task ausnut` (~11 MB zip)
+- **Records:** ~3,720 Australian and NZ foods, per-100 g nutrient data
+- **Source:** [FSANZ AUSNUT 2023](https://www.foodstandards.gov.au/science-data/food-nutrient-databases/ausnut/data-files)
 - **Licence:** Creative Commons Attribution 3.0 Australia
 
 ### 2. NZ Food Composition Tables 14th Edition
-- **File:** `nz-food-composition/concise-14-edition.xlsx`
-- **Records imported:** ~1,266 New Zealand foods, per-100 g nutrient data
-- **Source:** [Plant & Food Research New Zealand Food Composition Database](https://www.plantandfood.com/en-nz/science-and-technical/tools-and-databases/new-zealand-food-composition-database/)
+- **Download:** `task nzfc`
+- **Records:** ~1,266 NZ foods, per-100 g nutrient data
+- **Source:** [Plant & Food Research NZ Food Composition Database](https://www.foodcomposition.co.nz/downloads/)
 - **Licence:** Creative Commons Attribution 4.0 International
 
-### 3. Open Food Facts — NZ filtered dump
-- **File:** `open-food-facts-nz/nz_products.csv` (filtered from the full OFF export at
-  `open-food-facts-nz/en.openfoodfacts.org.products.csv.gz`)
-- **Records imported:** ~2,949 New Zealand barcoded/branded products
-- **Source:** [Open Food Facts](https://world.openfoodfacts.org/data), filtered with `filter_nz.py`
+### 3. Open Food Facts — APAC (Parquet)
+- **Download:** `task parquet` (~2 GB from HuggingFace)
+- **Records:** ~72,590 NZ and AU barcoded/branded products
+- **Source:** [Open Food Facts on HuggingFace](https://huggingface.co/datasets/openfoodfacts/product-database)
 - **Licence:** Open Database Licence (ODbL)
+- **Notes:** DuckDB filters to NZ/AU directly from the Parquet file. Nutriments are
+  stored as a struct array (richer than the flat CSV export). Products tagged
+  `en:nutriscore-missing-nutrition-data-energy` are excluded.
 
 ### 4. USDA Foundation Foods 2026
-- **Files:** `usda/foundation/FoodData_Central_foundation_food_csv_2026-04-30/`
-- **Records imported:** ~377 foundational foods (raw ingredients, minimally processed)
-- **Source:** [USDA FoodData Central](https://fdc.nal.usda.gov/download-foods.html)
+- **Download:** `task usda` (~32 MB)
+- **Records:** ~377 foundational foods (raw ingredients, minimally processed)
+- **Source:** [USDA FoodData Central](https://fdc.nal.usda.gov/download-datasets)
 - **Licence:** Public domain (US government work)
-
----
-
-## Database schema
-
-The seed contains the full app schema so the Flutter app requires no migrations on
-first install:
-
-| Table | Purpose |
-|-------|---------|
-| `foods` | All food items (8,311 rows across all sources) |
-| `diary_entries` | User diary (empty in seed) |
-| `recipes` | User-created recipes (empty in seed) |
-| `recipe_items` | Ingredients within recipes (empty in seed) |
-| `vocabulary` | Unique word tokens for Levenshtein spell-correction (3,872 words) |
-| `foods_fts` | FTS5 full-text search index over name + brand |
 
 ---
 
 ## Building the database
 
-Requires [uv](https://docs.astral.sh/uv/).
+Requires [uv](https://docs.astral.sh/uv/) and [Task](https://taskfile.dev).
 
 ```bash
 cd data
-uv sync          # install Python deps (openpyxl)
-uv run python build_db.py
+task all        # download all sources + build
+# or individually:
+task ausnut     # download AUSNUT
+task nzfc       # download NZ Food Composition
+task parquet    # download OFF Parquet (~2 GB)
+task usda       # download USDA Foundation Foods
+task build      # build the seed DB
 ```
 
-Output: `../assets/calora_seed.db` (~2.2 MB)
+Each download task uses `status: test -f <file>` to skip if already present.
+Re-run any task to force a fresh download by deleting the target file first.
 
-**When to rebuild:** any time you change data sources, add new foods, or change the
-schema. Bump `PRAGMA user_version` in `build_db.py` by 1 and update `_kSeedVersion`
-in `lib/services/database_service.dart` to match — the app will automatically
+Output: `../assets/calora_seed.db` (~21 MB)
+
+### When to rebuild
+
+Any time you add new data or change sources. Bump `PRAGMA user_version` in
+`build.py` by 1 **and** update `_kFoodsVersion` in
+`lib/services/database_service.dart` to match — the app will automatically
 replace the on-device database on next launch.
+
+### Schema migrations
+
+SQL migrations live in `migrations/`. The build script applies any unapplied
+`.sql` files (tracked via `schema_migrations` table) before importing data.
+Add `001_add_column.sql` etc. for future schema changes.
+
+### Incremental builds
+
+The seed DB is maintained incrementally — existing records are preserved across
+builds. AUSNUT/NZ/USDA use `INSERT OR REPLACE` (source corrections propagate);
+OFF uses `INSERT OR IGNORE` (API-enriched records survive rebuilds). FTS5 and
+vocabulary tables are always rebuilt from scratch at the end of each build.
 
 ---
 
-## What is NOT loaded
+## Directory structure
 
-- **AU Open Food Facts dump** (`open-food-facts-nz/au_products.csv`) — 73 k rows,
-  adds significant DB size; can be added to `build_db.py`'s `main()` if needed
-- **Full OFF global dump** (`open-food-facts-nz/en.openfoodfacts.org.products.csv.gz`) —
-  not imported; far too large and contains primarily non-AU/NZ products
+```
+data/
+  build.py              # main build script
+  Taskfile.yml          # download + build tasks
+  pyproject.toml        # Python deps (openpyxl, duckdb)
+  migrations/           # SQL schema migrations
+    000_create.sql
+  ausnut/               # AUSNUT xlsx files (gitignored, task ausnut to download)
+  nzfc/                 # NZ Food Composition xlsx (gitignored, task nzfc)
+  off/                  # OFF Parquet file (gitignored, task parquet)
+  usda/                 # USDA Foundation Foods CSV (gitignored, task usda)
+```
