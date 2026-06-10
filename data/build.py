@@ -13,13 +13,19 @@ Run from the data/ directory:
 """
 
 import csv
+import json
 import re
 import sqlite3
 import sys
+import time
+import urllib.request
 import uuid
 from pathlib import Path
 
 import openpyxl
+
+OFF_API      = "https://world.openfoodfacts.org/api/v2/product"
+_API_DELAY   = 0.5   # seconds between API calls — be polite
 
 ROOT = Path(__file__).parent
 OUT = ROOT.parent / "assets" / "calora_seed.db"
@@ -37,37 +43,36 @@ def _f(v) -> float:
         return 0.0
 
 
-def _create_schema(conn: sqlite3.Connection) -> None:
-    # Seed DB contains only food-reference data — no user tables.
-    # User data (diary, recipes) lives in a separate calora_user.db on-device.
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS foods (
-            id                    TEXT PRIMARY KEY,
-            name                  TEXT NOT NULL,
-            brand                 TEXT,
-            barcode               TEXT,
-            calories_per_100g     REAL NOT NULL,
-            fat_per_100g          REAL DEFAULT 0,
-            saturated_fat_per_100g REAL DEFAULT 0,
-            carbs_per_100g        REAL DEFAULT 0,
-            sugars_per_100g       REAL DEFAULT 0,
-            fiber_per_100g        REAL DEFAULT 0,
-            protein_per_100g      REAL DEFAULT 0,
-            sodium_per_100g       REAL DEFAULT 0,
-            serving_size          TEXT,
-            serving_grams         REAL,
-            image_url             TEXT,
-            source                TEXT DEFAULT 'custom'
-        );
-        CREATE INDEX IF NOT EXISTS idx_foods_barcode ON foods (barcode);
-        CREATE INDEX IF NOT EXISTS idx_foods_name    ON foods (LOWER(name));
+MIGRATIONS_DIR = ROOT / "migrations"
+
+
+def _apply_migrations(conn: sqlite3.Connection) -> None:
+    """Run any migration .sql files not yet recorded in schema_migrations."""
+    # Ensure the tracking table exists before anything else.
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version    TEXT PRIMARY KEY,
+            applied_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
     """)
+    conn.commit()
+
+    applied = {r[0] for r in conn.execute("SELECT version FROM schema_migrations")}
+    for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        version = path.stem
+        if version in applied:
+            continue
+        print(f"  Applying migration {version} …", flush=True)
+        conn.executescript(path.read_text())
+        conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
+        conn.commit()
 
 
-def _insert(conn: sqlite3.Connection, row: dict) -> None:
+def _insert(conn: sqlite3.Connection, row: dict, replace: bool = False) -> None:
+    verb = "INSERT OR REPLACE" if replace else "INSERT OR IGNORE"
     conn.execute(
-        """
-        INSERT OR IGNORE INTO foods
+        f"""
+        {verb} INTO foods
             (id, name, brand, barcode, calories_per_100g,
              fat_per_100g, saturated_fat_per_100g, carbs_per_100g,
              sugars_per_100g, fiber_per_100g, protein_per_100g,
@@ -139,7 +144,7 @@ def import_ausnut(conn: sqlite3.Connection) -> int:
             "serving_grams": None,
             "image_url": None,
             "source": "ausnut",
-        })
+        }, replace=True)
         count += 1
 
     wb_nutr.close()
@@ -192,7 +197,7 @@ def import_nz_composition(conn: sqlite3.Connection) -> int:
             "serving_grams": _f(row[2]) or None,
             "image_url": None,
             "source": "nz",
-        })
+        }, replace=True)
         count += 1
 
     wb.close()
@@ -200,74 +205,143 @@ def import_nz_composition(conn: sqlite3.Connection) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Open Food Facts NZ (filtered CSV with barcodes)
+# Open Food Facts APAC — CSV with API enrichment for missing nutrition
 # ---------------------------------------------------------------------------
 
+
+def _fetch_off_nutrition(barcode: str) -> tuple | None:
+    """Fetch a single product from the OFF API. Returns a nutrition tuple or None."""
+    try:
+        url = f"{OFF_API}/{barcode}?fields=product_name,brands,serving_size,serving_quantity,nutriments,image_front_url"
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "Calora/1.0 (calorie tracker; data pipeline)"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        if data.get("status") != 1:
+            return None
+        p = data["product"]
+        n = p.get("nutriments") or {}
+        kcal = n.get("energy-kcal_100g") or 0
+        if not kcal:
+            kj = n.get("energy_100g") or 0
+            kcal = round(kj / 4.184, 2) if kj else 0
+        if kcal <= 0:
+            return None
+        try:
+            serving_grams = float(p.get("serving_quantity") or "") or None
+        except ValueError:
+            serving_grams = None
+        return (
+            (p.get("product_name") or "").strip(),
+            (p.get("brands") or "").strip() or None,
+            round(kcal, 2),
+            n.get("fat_100g") or 0,
+            n.get("saturated-fat_100g") or 0,
+            n.get("carbohydrates_100g") or 0,
+            n.get("sugars_100g") or 0,
+            n.get("fiber_100g") or 0,
+            n.get("proteins_100g") or 0,
+            n.get("sodium_100g") or 0,
+            (p.get("serving_size") or "").strip() or None,
+            serving_grams,
+            (p.get("image_front_url") or "").strip() or None,
+        )
+    except Exception:
+        return None
+
+
+def _insert_off(conn: sqlite3.Connection, barcode: str, name: str,
+                brand, kcal: float, fat: float, sat_fat: float,
+                carbs: float, sugars: float, fiber: float, protein: float,
+                sodium: float, serving_size, serving_grams, image_url) -> None:
+    _insert(conn, {
+        "id":                     f"off_{barcode}",
+        "name":                   name,
+        "brand":                  brand,
+        "barcode":                barcode,
+        "calories_per_100g":      round(kcal, 2),
+        "fat_per_100g":           fat,
+        "saturated_fat_per_100g": sat_fat,
+        "carbs_per_100g":         carbs,
+        "sugars_per_100g":        sugars,
+        "fiber_per_100g":         fiber,
+        "protein_per_100g":       protein,
+        "sodium_per_100g":        sodium,
+        "serving_size":           serving_size,
+        "serving_grams":          serving_grams,
+        "image_url":              image_url,
+        "source":                 "off_nz",
+    })
+
+
 def import_off_apac(conn: sqlite3.Connection) -> int:
-    path = ROOT / "off" / "apac.en.openfoodfacts.org.products.csv"
-    if not path.exists():
-        raise FileNotFoundError(f"{path}\n  Run: task off && task filter")
-    count = 0
+    csv_path = ROOT / "off" / "apac.en.openfoodfacts.org.products.csv"
+    if not csv_path.exists():
+        raise FileNotFoundError(f"{csv_path}\n  Run: task off && task filter")
+
+    def _f(v: str) -> float:
+        try:
+            return float(v) if v else 0.0
+        except ValueError:
+            return 0.0
+
+    count      = 0
+    api_calls  = 0
     csv.field_size_limit(sys.maxsize)
 
-    with open(path, encoding="utf-8", errors="replace") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            name = (row.get("product_name") or "").strip()
+    with open(csv_path, encoding="utf-8", errors="replace") as f:
+        for row in csv.DictReader(f):
             barcode = (row.get("code") or "").strip()
-            if not name or not barcode:
+            name    = (row.get("product_name") or "").strip()
+            if not barcode or not name:
                 continue
 
             kcal_str = row.get("energy-kcal_100g", "").strip()
-            if not kcal_str:
-                # fall back to kJ
-                kj_str = row.get("energy-kj_100g", "").strip()
+            kcal = _f(kcal_str) if kcal_str else _f(row.get("energy-kj_100g", "")) * KJ_TO_KCAL
+
+            if kcal > 0:
+                # CSV has nutrition — insert directly.
                 try:
-                    kcal = float(kj_str) * KJ_TO_KCAL if kj_str else 0.0
+                    serving_grams = float(row.get("serving_quantity") or "") or None
                 except ValueError:
-                    kcal = 0.0
+                    serving_grams = None
+                _insert_off(
+                    conn, barcode, name,
+                    (row.get("brands") or "").strip() or None,
+                    kcal,
+                    _f(row.get("fat_100g", "")),
+                    _f(row.get("saturated-fat_100g", "")),
+                    _f(row.get("carbohydrates_100g", "")),
+                    _f(row.get("sugars_100g", "")),
+                    _f(row.get("fiber_100g", "")),
+                    _f(row.get("proteins_100g", "")),
+                    _f(row.get("sodium_100g", "")),
+                    (row.get("serving_size") or "").strip() or None,
+                    serving_grams,
+                    (row.get("image_url") or "").strip() or None,
+                )
+                count += 1
+
             else:
-                try:
-                    kcal = float(kcal_str)
-                except ValueError:
-                    kcal = 0.0
+                # No nutrition in CSV — check if already enriched in the DB.
+                existing = conn.execute(
+                    "SELECT 1 FROM foods WHERE id = ? AND calories_per_100g > 0",
+                    (f"off_{barcode}",)
+                ).fetchone()
+                if existing:
+                    pass  # already enriched from a previous build, keep it
+                else:
+                    # Not in DB — ask the API (politely).
+                    time.sleep(_API_DELAY)
+                    api_calls += 1
+                    result = _fetch_off_nutrition(barcode)
+                    if result:
+                        _insert_off(conn, barcode, name, *result)
+                        count += 1
 
-            if kcal <= 0:
-                continue
-
-            def _csv_f(key: str) -> float:
-                v = row.get(key, "").strip()
-                try:
-                    return float(v) if v else 0.0
-                except ValueError:
-                    return 0.0
-
-            serving_size = (row.get("serving_size") or "").strip() or None
-            serving_grams_str = (row.get("serving_quantity") or "").strip()
-            try:
-                serving_grams = float(serving_grams_str) if serving_grams_str else None
-            except ValueError:
-                serving_grams = None
-
-            _insert(conn, {
-                "id": f"off_{barcode}",
-                "name": name,
-                "brand": (row.get("brands") or "").strip() or None,
-                "barcode": barcode,
-                "calories_per_100g": round(kcal, 2),
-                "protein_per_100g": _csv_f("proteins_100g"),
-                "fat_per_100g": _csv_f("fat_100g"),
-                "saturated_fat_per_100g": _csv_f("saturated-fat_100g"),
-                "carbs_per_100g": _csv_f("carbohydrates_100g"),
-                "sugars_per_100g": _csv_f("sugars_100g"),
-                "fiber_per_100g": _csv_f("fiber_100g"),
-                "sodium_per_100g": _csv_f("sodium_100g"),  # already g/100g in OFF
-                "serving_size": serving_size,
-                "serving_grams": serving_grams,
-                "image_url": (row.get("image_url") or "").strip() or None,
-                "source": "off_nz",
-            })
-            count += 1
+    if api_calls:
+        print(f"  ({api_calls:,} API lookups for missing nutrition)", flush=True)
 
     return count
 
@@ -339,7 +413,7 @@ def import_usda(conn: sqlite3.Connection) -> int:
             'serving_grams': None,
             'image_url': None,
             'source': 'usda',
-        })
+        }, replace=True)
         count += 1
     return count
 
@@ -381,13 +455,11 @@ def _print_diff(before: dict[str, int], after: dict[str, int]) -> None:
 def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     before = _counts(OUT)
-    if OUT.exists():
-        OUT.unlink()
 
     conn = sqlite3.connect(OUT)
     conn.execute("PRAGMA journal_mode=WAL")
-
-    _create_schema(conn)
+    print("Applying migrations …")
+    _apply_migrations(conn)
 
     print("Importing AUSNUT 2023 …", end=" ", flush=True)
     n = import_ausnut(conn)
@@ -412,7 +484,8 @@ def main() -> None:
     after = dict(conn.execute("SELECT source, COUNT(*) FROM foods GROUP BY source").fetchall())
     _print_diff(before, after)
 
-    print("Building vocabulary …", end=" ", flush=True)
+    print("Rebuilding vocabulary …", end=" ", flush=True)
+    conn.execute("DROP TABLE IF EXISTS vocabulary")
     tokens: set[str] = set()
     for (name, brand) in conn.execute("SELECT name, COALESCE(brand,'') FROM foods"):
         for word in re.findall(r'[a-z]{3,}', f"{name} {brand}".lower()):
@@ -422,7 +495,8 @@ def main() -> None:
     conn.commit()
     print(f"{len(tokens):,} tokens")
 
-    print("Building FTS5 index …", end=" ", flush=True)
+    print("Rebuilding FTS5 index …", end=" ", flush=True)
+    conn.execute("DROP TABLE IF EXISTS foods_fts")
     conn.execute("""
         CREATE VIRTUAL TABLE foods_fts USING fts5(
             name,
