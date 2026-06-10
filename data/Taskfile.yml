@@ -28,10 +28,10 @@ tasks:
       - mkdir -p nzfc
       - curl -L -o nzfc/concise-14-edition.xlsx "{{.URL}}"
 
-  parquet:
+  off:
     desc: "Download Open Food Facts full product database in Parquet format"
     vars:
-      URL: "" # TODO: set the URL where you downloaded food.parquet from
+      URL: https://huggingface.co/datasets/openfoodfacts/product-database/resolve/main/food.parquet?download=true
     status:
       - test -f off/food.parquet
     cmds:
@@ -60,6 +60,6 @@ tasks:
 
   all:
     desc: "Full pipeline: download all sources, build DB"
-    deps: [ausnut, nzfc, parquet, usda]
+    deps: [ausnut, nzfc, off, usda]
     cmds:
       - task: build
