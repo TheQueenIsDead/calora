@@ -536,7 +536,7 @@ def main() -> None:
 
     print(f"Output: {OUT}")
     conn.execute("PRAGMA optimize")
-    conn.execute("PRAGMA user_version = 3")  # bump when schema or data changes
+    conn.execute("PRAGMA user_version = 4")  # bump when schema or data changes
     conn.execute("VACUUM")
     conn.close()
 
