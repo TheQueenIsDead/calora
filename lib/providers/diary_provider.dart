@@ -60,7 +60,7 @@ class DiaryProvider extends ChangeNotifier {
         date.day == now.day;
     _entries = await DatabaseService.instance.getEntriesForDate(date);
     final prefs = UserPreferences.instance;
-    _waterMl = await prefs.getWaterMlForDate(date);
+    _waterMl = await DatabaseService.instance.getWaterMlForDate(date);
     _dailyGoal = await DatabaseService.instance.getEffectiveGoal(date) ??
         await UserPreferences.instance.getDailyGoal();
     _isLocked = await prefs.getLockState(date);
@@ -147,14 +147,14 @@ class DiaryProvider extends ChangeNotifier {
     if (_isLocked) return;
     _waterMl = (_waterMl + ml).clamp(0, 99999);
     notifyListeners();
-    await UserPreferences.instance.setWaterMlForDate(_selectedDate, _waterMl);
+    await DatabaseService.instance.setWaterMlForDate(_selectedDate, _waterMl);
   }
 
   Future<void> removeWaterMl(int ml) async {
     if (_isLocked) return;
     _waterMl = (_waterMl - ml).clamp(0, 99999);
     notifyListeners();
-    await UserPreferences.instance.setWaterMlForDate(_selectedDate, _waterMl);
+    await DatabaseService.instance.setWaterMlForDate(_selectedDate, _waterMl);
   }
 
   Future<void> createRecipeFromMeal(Meal meal, String name) async {

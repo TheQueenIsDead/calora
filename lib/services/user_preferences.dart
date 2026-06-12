@@ -37,28 +37,6 @@ class UserPreferences {
     await prefs.setInt('water_target_ml', ml);
   }
 
-  Future<int> getWaterMlForDate(DateTime date) async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'water_ml_${date.toIso8601String().substring(0, 10)}';
-    final oldKey = 'water_${date.toIso8601String().substring(0, 10)}';
-    final oldCups = prefs.getInt(oldKey);
-    if (oldCups != null && oldCups > 0) {
-      final ml = oldCups * 250;
-      await prefs.setInt(key, ml);
-      await prefs.remove(oldKey);
-      return ml;
-    }
-    return prefs.getInt(key) ?? 0;
-  }
-
-  Future<void> setWaterMlForDate(DateTime date, int ml) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(
-      'water_ml_${date.toIso8601String().substring(0, 10)}',
-      ml,
-    );
-  }
-
   // ── Vessels ───────────────────────────────────────────────────────────────
 
   Future<List<WaterVessel>> getVessels() async {

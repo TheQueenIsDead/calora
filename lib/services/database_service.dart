@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:uuid/uuid.dart';
@@ -104,7 +105,7 @@ class DatabaseService {
 
   // ── User DB (never wiped, holds diary + recipes + food cache) ─────────────
 
-  static const _kUserVersion = 5;
+  static const _kUserVersion = 6;
 
   Future<Database> _openUserDb() async {
     final dir = await getDatabasesPath();
@@ -122,12 +123,14 @@ class DatabaseService {
         }
         if (oldV < 4) await _createWeightLogTable(db);
         if (oldV < 5) await _createLastUsedGramsTable(db);
+        if (oldV < 6) await _migrateWaterToDb(db);
       },
     );
     await _createGoalHistoryTable(db);
     await _ensureRecipesServingsColumn(db);
     await _createWeightLogTable(db);
     await _createLastUsedGramsTable(db);
+    await _createWaterLogTable(db);
     return db;
   }
 
@@ -166,6 +169,68 @@ class DatabaseService {
         grams   REAL NOT NULL
       )
     ''');
+  }
+
+  Future<void> _createWaterLogTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS water_log (
+        date TEXT UNIQUE NOT NULL,
+        ml   INTEGER NOT NULL
+      )
+    ''');
+  }
+
+  /// Moves per-day water entries from SharedPreferences into the water_log table.
+  /// Runs once on upgrade to user DB v6; removes the prefs keys afterwards.
+  Future<void> _migrateWaterToDb(Database db) async {
+    await _createWaterLogTable(db);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final waterKeys = prefs.getKeys()
+          .where((k) => k.startsWith('water_ml_'))
+          .toList();
+      for (final key in waterKeys) {
+        final date = key.replaceFirst('water_ml_', '');
+        final ml = prefs.getInt(key) ?? 0;
+        await db.insert(
+          'water_log',
+          {'date': date, 'ml': ml},
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        await prefs.remove(key);
+      }
+      debugPrint('Water migration: moved ${waterKeys.length} days from SharedPreferences → SQLite');
+    } catch (e) {
+      debugPrint('Water migration error: $e');
+    }
+  }
+
+  Future<int> getWaterMlForDate(DateTime date) async {
+    try {
+      final d = await userDb;
+      final rows = await d.query(
+        'water_log',
+        where: 'date = ?',
+        whereArgs: [date.toIso8601String().substring(0, 10)],
+      );
+      return rows.isEmpty ? 0 : (rows.first['ml'] as num).toInt();
+    } catch (e) {
+      debugPrint('getWaterMlForDate error: $e');
+      return 0;
+    }
+  }
+
+  Future<void> setWaterMlForDate(DateTime date, int ml) async {
+    try {
+      final d = await userDb;
+      await d.insert(
+        'water_log',
+        {'date': date.toIso8601String().substring(0, 10), 'ml': ml},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (e) {
+      debugPrint('setWaterMlForDate error: $e');
+    }
   }
 
   Future<void> saveLastUsedGrams(String foodId, double grams) async {
@@ -262,6 +327,7 @@ class DatabaseService {
     await _createGoalHistoryTable(db);
     await _createWeightLogTable(db);
     await _createLastUsedGramsTable(db);
+    await _createWaterLogTable(db);
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -1098,6 +1164,7 @@ class DatabaseService {
       'recipe_items': await d.query('recipe_items'),
       'goal_history': await d.query('goal_history'),
       'weight_log': await d.query('weight_log'),
+      'water_log': await d.query('water_log'),
       'last_used_grams': await d.query('last_used_grams'),
     };
   }
@@ -1114,6 +1181,7 @@ class DatabaseService {
         'foods',
         'goal_history',
         'weight_log',
+        'water_log',
       ]) {
         await txn.delete(t);
       }
@@ -1125,6 +1193,7 @@ class DatabaseService {
         'diary_entries',
         'goal_history',
         'weight_log',
+        'water_log',
         'last_used_grams',
       ]) {
         for (final row in (tables[t] as List? ?? [])) {

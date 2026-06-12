@@ -424,6 +424,7 @@ void main() {
   test('addWaterMl: accumulates water volume', () async {
     final diary = DiaryProvider();
     await diary.init();
+    await diary.loadDay(DateTime(2099, 3, 1));
     await diary.addWaterMl(250);
     await diary.addWaterMl(350);
     expect(diary.waterMl, 600);
@@ -432,6 +433,7 @@ void main() {
   test('removeWaterMl: clamps at zero — never goes negative', () async {
     final diary = DiaryProvider();
     await diary.init();
+    await diary.loadDay(DateTime(2099, 3, 2));
     // waterMl starts at 0; removing 500 must clamp to 0
     await diary.removeWaterMl(500);
     expect(diary.waterMl, 0);
@@ -457,6 +459,7 @@ void main() {
       final diary = DiaryProvider();
       final settings = SettingsProvider();
       await diary.init();
+      await diary.loadDay(DateTime(2099, 3, 3));
       await settings.setWaterTargetMl(1000);
 
       await diary.addWaterMl(500);
