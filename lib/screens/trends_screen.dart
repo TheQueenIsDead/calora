@@ -125,6 +125,7 @@ class _CalorieChart extends StatelessWidget {
     final bars = <BarChartGroupData>[];
     final goalSpots = <FlSpot>[];
     double maxY = 0;
+    double? minNonZero;
     double? prevGoal;
 
     if (hasTdee && tdee > maxY) maxY = tdee.toDouble();
@@ -136,6 +137,7 @@ class _CalorieChart extends StatelessWidget {
       final dayGoal = (dailyGoals[key] ?? 2000).toDouble();
       if (kcal > maxY) maxY = kcal;
       if (dayGoal > maxY) maxY = dayGoal;
+      if (kcal > 0) minNonZero = minNonZero == null ? kcal : kcal < minNonZero ? kcal : minNonZero;
 
       final Color barColor;
       if (kcal == 0) {
@@ -174,6 +176,12 @@ class _CalorieChart extends StatelessWidget {
 
     maxY = maxY * 1.2;
     if (maxY == 0) maxY = 2400;
+
+    // Floor minY to the nearest 500 below the lowest non-zero datapoint so
+    // fluctuations aren't dwarfed by an empty 0→floor region.
+    final minY = minNonZero == null
+        ? 0.0
+        : (minNonZero / 500).floor() * 500.0;
 
     return Card(
       child: Padding(
@@ -219,11 +227,12 @@ class _CalorieChart extends StatelessWidget {
                 children: [
                   BarChart(
                     BarChartData(
+                      minY: minY,
                       maxY: maxY,
                       barGroups: bars,
                       gridData: FlGridData(
                         drawVerticalLine: false,
-                        horizontalInterval: maxY / 4,
+                        horizontalInterval: (maxY - minY) / 4,
                         getDrawingHorizontalLine: (_) => FlLine(
                           color: theme.colorScheme.primary.withValues(
                             alpha: 0.3,
@@ -263,7 +272,7 @@ class _CalorieChart extends StatelessWidget {
                         // minX = -1, maxX = days aligns with BarChartAlignment.spaceEvenly
                         minX: -1,
                         maxX: days.toDouble(),
-                        minY: 0,
+                        minY: minY,
                         maxY: maxY,
                         lineBarsData: [
                           LineChartBarData(
