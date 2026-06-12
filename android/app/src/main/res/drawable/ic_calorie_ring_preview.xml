@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ring preview: center (55,55), radius 39.
+  Track = full circle via 4 quarter arcs.
+  Progress arc = ~70% (252°), end point at 162° = (17.91, 67.05).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="110dp"
+    android:height="110dp"
+    android:viewportWidth="110"
+    android:viewportHeight="110">
+
+    <!-- Dark circle background -->
+    <path
+        android:fillColor="#FF1E2124"
+        android:pathData="M55,55 m-55,0 a55,55 0 1,0 110,0 a55,55 0 1,0 -110,0" />
+
+    <!-- Ring track — full circle via 4 quarter arcs -->
+    <path
+        android:strokeColor="#3042C750"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M55,16 A39,39,0,0,1,94,55 A39,39,0,0,1,55,94 A39,39,0,0,1,16,55 A39,39,0,0,1,55,16" />
+
+    <!-- Progress arc ~70% (252°), large-arc-flag=1 -->
+    <path
+        android:strokeColor="#FF42C750"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M55,16 A39,39,0,1,1,17.91,67.05" />
+
+</vector>
