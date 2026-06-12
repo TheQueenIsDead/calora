@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.4.0](https://github.com/TheQueenIsDead/calora/compare/v1.3.0...v1.4.0) (2026-06-12)
+
+
+### Features
+
+* add Android water home screen widget ([67266a6](https://github.com/TheQueenIsDead/calora/commit/67266a67e29cad7bfce792a9f672848b7dbc0097))
+* migrate daily water tracking from SharedPreferences to SQLite ([9333d7e](https://github.com/TheQueenIsDead/calora/commit/9333d7e5c08821711f45b1e185b4570607fed804))
+* **widget:** allow 1-cell height and 3-cell minimum width ([18e2cea](https://github.com/TheQueenIsDead/calora/commit/18e2cea95b3da39758fe161446288f6d487d2f61))
+
+
+### Bug Fixes
+
+* align left Y-axis labels with grid lines ([11a9a87](https://github.com/TheQueenIsDead/calora/commit/11a9a876464161d6b489e68a138f1c2f7b50feb0))
+* floor calorie chart Y-axis to nearest 500 below min datapoint ([a068135](https://github.com/TheQueenIsDead/calora/commit/a068135b450fbda2ef4612932f9ac69b14d36a65))
+* snap calorie chart Y-axis to 500-unit grid ([7f5ebda](https://github.com/TheQueenIsDead/calora/commit/7f5ebdaf6f22b07cd93e047d17ae642d82f2898f))
+
 ## [1.3.0](https://github.com/TheQueenIsDead/calora/compare/v1.2.0...v1.3.0) (2026-06-10)
 
 
