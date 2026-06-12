@@ -6,6 +6,7 @@ import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/trends_screen.dart';
 import 'services/database_service.dart';
+import 'services/calorie_widget_service.dart';
 import 'services/water_widget_service.dart';
 
 void main() async {
@@ -18,6 +19,7 @@ void main() async {
   await settings.init();
   await diary.init();
   await WaterWidgetService.instance.initialize(diary, settings, widgetWaterMl);
+  await CalorieWidgetService.instance.initialize(diary, settings);
 
   runApp(
     MultiProvider(
