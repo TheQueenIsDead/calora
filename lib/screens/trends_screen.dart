@@ -137,7 +137,11 @@ class _CalorieChart extends StatelessWidget {
       final dayGoal = (dailyGoals[key] ?? 2000).toDouble();
       if (kcal > maxY) maxY = kcal;
       if (dayGoal > maxY) maxY = dayGoal;
-      if (kcal > 0) minNonZero = minNonZero == null ? kcal : kcal < minNonZero ? kcal : minNonZero;
+      if (kcal > 0) {
+        minNonZero = minNonZero == null
+            ? kcal
+            : (kcal < minNonZero ? kcal : minNonZero);
+      }
 
       final Color barColor;
       if (kcal == 0) {
@@ -178,9 +182,7 @@ class _CalorieChart extends StatelessWidget {
 
     // Snap both bounds to multiples of 500 so labels, grid lines, and bars
     // all land on the same round positions.
-    final minY = minNonZero == null
-        ? 0.0
-        : (minNonZero / 500).floor() * 500.0;
+    final minY = minNonZero == null ? 0.0 : (minNonZero / 500).floor() * 500.0;
     maxY = ((maxY * 1.1) / 500).ceil() * 500.0;
 
     return Card(
@@ -335,14 +337,20 @@ class _CalorieChart extends StatelessWidget {
     );
   }
 
-  FlTitlesData _titlesData(ThemeData theme, DateTime today, {double? interval}) => FlTitlesData(
+  FlTitlesData _titlesData(
+    ThemeData theme,
+    DateTime today, {
+    double? interval,
+  }) => FlTitlesData(
     leftTitles: AxisTitles(
       sideTitles: SideTitles(
         showTitles: true,
         reservedSize: 44,
         interval: interval,
         getTitlesWidget: (v, _) => Text(
-          v >= 1000 ? '${(v / 1000).toStringAsFixed(1)}k' : v.toInt().toString(),
+          v >= 1000
+              ? '${(v / 1000).toStringAsFixed(1)}k'
+              : v.toInt().toString(),
           style: theme.textTheme.labelSmall,
         ),
       ),

@@ -186,20 +186,22 @@ class DatabaseService {
     await _createWaterLogTable(db);
     try {
       final prefs = await SharedPreferences.getInstance();
-      final waterKeys = prefs.getKeys()
+      final waterKeys = prefs
+          .getKeys()
           .where((k) => k.startsWith('water_ml_'))
           .toList();
       for (final key in waterKeys) {
         final date = key.replaceFirst('water_ml_', '');
         final ml = prefs.getInt(key) ?? 0;
-        await db.insert(
-          'water_log',
-          {'date': date, 'ml': ml},
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+        await db.insert('water_log', {
+          'date': date,
+          'ml': ml,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
         await prefs.remove(key);
       }
-      debugPrint('Water migration: moved ${waterKeys.length} days from SharedPreferences → SQLite');
+      debugPrint(
+        'Water migration: moved ${waterKeys.length} days from SharedPreferences → SQLite',
+      );
     } catch (e) {
       debugPrint('Water migration error: $e');
     }
@@ -223,11 +225,10 @@ class DatabaseService {
   Future<void> setWaterMlForDate(DateTime date, int ml) async {
     try {
       final d = await userDb;
-      await d.insert(
-        'water_log',
-        {'date': date.toIso8601String().substring(0, 10), 'ml': ml},
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await d.insert('water_log', {
+        'date': date.toIso8601String().substring(0, 10),
+        'ml': ml,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     } catch (e) {
       debugPrint('setWaterMlForDate error: $e');
     }

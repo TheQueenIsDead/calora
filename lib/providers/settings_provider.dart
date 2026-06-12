@@ -6,7 +6,8 @@ import '../services/user_preferences.dart';
 class SettingsProvider extends ChangeNotifier {
   final VoidCallback? _onGoalChanged;
 
-  SettingsProvider({VoidCallback? onGoalChanged}) : _onGoalChanged = onGoalChanged; // ignore: prefer_initializing_formals
+  SettingsProvider({VoidCallback? onGoalChanged})
+    : _onGoalChanged = onGoalChanged; // ignore: prefer_initializing_formals
 
   int _currentGoal = 2000;
   int _waterTargetMl = 2000;
