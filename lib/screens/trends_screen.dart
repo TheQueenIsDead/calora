@@ -242,7 +242,7 @@ class _CalorieChart extends StatelessWidget {
                         ),
                       ),
                       borderData: FlBorderData(show: false),
-                      titlesData: _titlesData(theme, today),
+                      titlesData: _titlesData(theme, today, interval: (maxY - minY) / 4),
                       barTouchData: BarTouchData(
                         touchTooltipData: BarTouchTooltipData(
                           getTooltipItem: (group, _, rod, _) {
@@ -335,11 +335,12 @@ class _CalorieChart extends StatelessWidget {
     );
   }
 
-  FlTitlesData _titlesData(ThemeData theme, DateTime today) => FlTitlesData(
+  FlTitlesData _titlesData(ThemeData theme, DateTime today, {double? interval}) => FlTitlesData(
     leftTitles: AxisTitles(
       sideTitles: SideTitles(
         showTitles: true,
         reservedSize: 44,
+        interval: interval,
         getTitlesWidget: (v, _) => Text(
           '${(v / 1000).toStringAsFixed(1)}k',
           style: theme.textTheme.labelSmall,
