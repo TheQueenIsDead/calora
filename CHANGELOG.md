@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.0](https://github.com/TheQueenIsDead/calora/compare/v1.4.0...v1.5.0) (2026-06-12)
+
+
+### Features
+
+* add 2x2 calorie ring home screen widget ([c4cbb41](https://github.com/TheQueenIsDead/calora/commit/c4cbb418aa095aa98150536dc429553b0b515b62))
+* add 2x2 calorie ring home screen widget ([cbcda56](https://github.com/TheQueenIsDead/calora/commit/cbcda565aa27ec63b5ee6c2fcb3257cc75a695df))
+* **widget:** show live layout preview in widget picker ([542515d](https://github.com/TheQueenIsDead/calora/commit/542515dae228b9ed3c3aa5b29475c5b160f42e62))
+
+
+### Bug Fixes
+
+* reset widget water count when day rolls over ([f4743cf](https://github.com/TheQueenIsDead/calora/commit/f4743cf2cc6c71b3d87e0f6b0a75f0247f3b29b3))
+* **widget:** align calorie ring preview, enable resize, allow 1x1 minimum ([613d198](https://github.com/TheQueenIsDead/calora/commit/613d198bec597bb291891f5a199d95a5333ccfa8))
+
 ## [1.4.0](https://github.com/TheQueenIsDead/calora/compare/v1.3.0...v1.4.0) (2026-06-12)
 
 
