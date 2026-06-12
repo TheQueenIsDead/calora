@@ -174,14 +174,14 @@ class _CalorieChart extends StatelessWidget {
       prevGoal = dayGoal;
     }
 
-    maxY = maxY * 1.2;
     if (maxY == 0) maxY = 2400;
 
-    // Floor minY to the nearest 500 below the lowest non-zero datapoint so
-    // fluctuations aren't dwarfed by an empty 0→floor region.
+    // Snap both bounds to multiples of 500 so labels, grid lines, and bars
+    // all land on the same round positions.
     final minY = minNonZero == null
         ? 0.0
         : (minNonZero / 500).floor() * 500.0;
+    maxY = ((maxY * 1.1) / 500).ceil() * 500.0;
 
     return Card(
       child: Padding(
@@ -232,7 +232,7 @@ class _CalorieChart extends StatelessWidget {
                       barGroups: bars,
                       gridData: FlGridData(
                         drawVerticalLine: false,
-                        horizontalInterval: (maxY - minY) / 4,
+                        horizontalInterval: 500,
                         getDrawingHorizontalLine: (_) => FlLine(
                           color: theme.colorScheme.primary.withValues(
                             alpha: 0.3,
@@ -242,7 +242,7 @@ class _CalorieChart extends StatelessWidget {
                         ),
                       ),
                       borderData: FlBorderData(show: false),
-                      titlesData: _titlesData(theme, today, interval: (maxY - minY) / 4),
+                      titlesData: _titlesData(theme, today, interval: 500),
                       barTouchData: BarTouchData(
                         touchTooltipData: BarTouchTooltipData(
                           getTooltipItem: (group, _, rod, _) {
@@ -342,7 +342,7 @@ class _CalorieChart extends StatelessWidget {
         reservedSize: 44,
         interval: interval,
         getTitlesWidget: (v, _) => Text(
-          '${(v / 1000).toStringAsFixed(1)}k',
+          v >= 1000 ? '${(v / 1000).toStringAsFixed(1)}k' : v.toInt().toString(),
           style: theme.textTheme.labelSmall,
         ),
       ),
