@@ -18,11 +18,14 @@ class WaterWidgetService {
 
   static const _androidWidget = 'WaterWidgetProvider';
 
-  /// Read the widget's cached water value before anything else runs.
+  /// Read the widget's cached water for TODAY, or null if stale (previous day).
   /// Call this as the very first thing in main() so diary.init() can't
   /// overwrite the widget's value before we've had a chance to read it.
   static Future<int?> snapshotWidgetWater() async {
     try {
+      final date = await HomeWidget.getWidgetData<String>('water_date');
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      if (date != today) return null; // stale — don't sync to today
       return await HomeWidget.getWidgetData<int>('water_ml');
     } catch (_) {
       return null;
@@ -55,6 +58,8 @@ class WaterWidgetService {
     int targetMl,
     List<WaterVessel> vessels,
   ) async {
+    await HomeWidget.saveWidgetData<String>(
+        'water_date', DateTime.now().toIso8601String().substring(0, 10));
     await HomeWidget.saveWidgetData<int>('water_ml', waterMl);
     await HomeWidget.saveWidgetData<int>('water_target_ml', targetMl);
     final count = vessels.length.clamp(1, 3);
