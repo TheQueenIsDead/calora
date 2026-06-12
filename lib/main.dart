@@ -5,13 +5,19 @@ import 'providers/settings_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/trends_screen.dart';
+import 'services/database_service.dart';
+import 'services/water_widget_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final diary = DiaryProvider();
   final settings = SettingsProvider(onGoalChanged: diary.refreshCurrentDay);
+  // Snapshot widget water value BEFORE diary.init() loads SQLite,
+  // so a previous _push() can't overwrite the widget's newer value.
+  final widgetWaterMl = await WaterWidgetService.snapshotWidgetWater();
   await settings.init();
   await diary.init();
+  await WaterWidgetService.instance.initialize(diary, settings, widgetWaterMl);
 
   runApp(
     MultiProvider(
@@ -80,8 +86,20 @@ class _RootScaffoldState extends State<_RootScaffold>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      context.read<DiaryProvider>().handleAppResume();
+    if (state == AppLifecycleState.resumed) _onResumed();
+  }
+
+  Future<void> _onResumed() async {
+    // Snapshot widget water BEFORE handleAppResume() reloads from SQLite
+    // so the listener can't overwrite the widget's value mid-sync.
+    final widgetMl = await WaterWidgetService.snapshotWidgetWater();
+    if (!mounted) return;
+    final diary = context.read<DiaryProvider>();
+    await diary.handleAppResume();
+    if (!mounted) return;
+    if (widgetMl != null && widgetMl > diary.waterMl) {
+      await DatabaseService.instance.setWaterMlForDate(DateTime.now(), widgetMl);
+      await diary.refreshCurrentDay();
     }
   }
 
