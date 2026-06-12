@@ -12,18 +12,21 @@ class CalorieWidgetService {
 
   static const _androidWidget = 'CalorieWidgetProvider';
 
-  Future<void> initialize(DiaryProvider diary, SettingsProvider settings) async {
+  Future<void> initialize(
+    DiaryProvider diary,
+    SettingsProvider settings,
+  ) async {
     await _push(diary, settings);
     diary.addListener(() => _push(diary, settings));
     settings.addListener(() => _push(diary, settings));
   }
 
   Future<void> _push(DiaryProvider diary, SettingsProvider settings) async {
-    final total    = diary.totalCalories;
-    final goal     = diary.dailyGoal;
-    final tdee     = settings.tdee;
+    final total = diary.totalCalories;
+    final goal = diary.dailyGoal;
+    final tdee = settings.tdee;
     final progress = (goal > 0 ? total / goal : 0.0).clamp(0.0, 1.0);
-    final hasTdee  = tdee > 0;
+    final hasTdee = tdee > 0;
 
     final Color ringColor;
     if (hasTdee && total > tdee) {

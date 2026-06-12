@@ -55,13 +55,13 @@ class DiaryProvider extends ChangeNotifier {
     notifyListeners();
     _selectedDate = date;
     final now = DateTime.now();
-    _wasViewingToday = date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
+    _wasViewingToday =
+        date.year == now.year && date.month == now.month && date.day == now.day;
     _entries = await DatabaseService.instance.getEntriesForDate(date);
     final prefs = UserPreferences.instance;
     _waterMl = await DatabaseService.instance.getWaterMlForDate(date);
-    _dailyGoal = await DatabaseService.instance.getEffectiveGoal(date) ??
+    _dailyGoal =
+        await DatabaseService.instance.getEffectiveGoal(date) ??
         await UserPreferences.instance.getDailyGoal();
     _isLocked = await prefs.getLockState(date);
     _loading = false;

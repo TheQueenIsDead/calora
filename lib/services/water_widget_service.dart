@@ -41,7 +41,9 @@ class WaterWidgetService {
     // app was closed), sync it to SQLite now.
     if (widgetSnapshot != null && widgetSnapshot > diary.waterMl) {
       await DatabaseService.instance.setWaterMlForDate(
-          DateTime.now(), widgetSnapshot);
+        DateTime.now(),
+        widgetSnapshot,
+      );
       await diary.refreshCurrentDay();
     }
     await _push(diary.waterMl, settings.waterTargetMl, settings.vessels);
@@ -59,13 +61,18 @@ class WaterWidgetService {
     List<WaterVessel> vessels,
   ) async {
     await HomeWidget.saveWidgetData<String>(
-        'water_date', DateTime.now().toIso8601String().substring(0, 10));
+      'water_date',
+      DateTime.now().toIso8601String().substring(0, 10),
+    );
     await HomeWidget.saveWidgetData<int>('water_ml', waterMl);
     await HomeWidget.saveWidgetData<int>('water_target_ml', targetMl);
     final count = vessels.length.clamp(1, 3);
     await HomeWidget.saveWidgetData<int>('vessel_count', count);
     for (var i = 0; i < count; i++) {
-      await HomeWidget.saveWidgetData<String>('vessel_${i}_name', vessels[i].name);
+      await HomeWidget.saveWidgetData<String>(
+        'vessel_${i}_name',
+        vessels[i].name,
+      );
       await HomeWidget.saveWidgetData<int>('vessel_${i}_ml', vessels[i].ml);
       await _renderVesselIcon(vessels[i], i);
     }
@@ -81,7 +88,10 @@ class WaterWidgetService {
               vessel.svgAsset!,
               width: 24,
               height: 24,
-              colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+              colorFilter: const ColorFilter.mode(
+                Colors.white,
+                BlendMode.srcIn,
+              ),
             )
           : Icon(vessel.icon, size: 24, color: Colors.white);
 

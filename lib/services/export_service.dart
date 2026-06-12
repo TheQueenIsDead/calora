@@ -17,9 +17,7 @@ class ExportService {
       'version': _version,
       'exported_at': DateTime.now().toIso8601String(),
       ...tables,
-      'preferences': {
-        for (final key in prefs.getKeys()) key: prefs.get(key),
-      },
+      'preferences': {for (final key in prefs.getKeys()) key: prefs.get(key)},
     };
 
     final json = const JsonEncoder.withIndent('  ').convert(payload);
@@ -28,10 +26,9 @@ class ExportService {
     final file = File('${dir.path}/calora_backup_$date.json');
     await file.writeAsString(json);
 
-    await Share.shareXFiles(
-      [XFile(file.path, mimeType: 'application/json')],
-      subject: 'Calora backup $date',
-    );
+    await Share.shareXFiles([
+      XFile(file.path, mimeType: 'application/json'),
+    ], subject: 'Calora backup $date');
   }
 
   /// Returns true if data was restored, false if the user cancelled.

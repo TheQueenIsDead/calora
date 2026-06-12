@@ -100,7 +100,10 @@ class _RootScaffoldState extends State<_RootScaffold>
     await diary.handleAppResume();
     if (!mounted) return;
     if (widgetMl != null && widgetMl > diary.waterMl) {
-      await DatabaseService.instance.setWaterMlForDate(DateTime.now(), widgetMl);
+      await DatabaseService.instance.setWaterMlForDate(
+        DateTime.now(),
+        widgetMl,
+      );
       await diary.refreshCurrentDay();
     }
   }

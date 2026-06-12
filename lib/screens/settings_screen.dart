@@ -59,7 +59,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget? _recipeSubtitle(Map<String, dynamic> r) {
-
     final kcal = (r['total_kcal'] as num?)?.toDouble() ?? 0;
     final kcalStr = kcal > 0 ? '${kcal.toStringAsFixed(0)} kcal' : null;
     final description = r['description'] as String?;
@@ -207,9 +206,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await ExportService().export();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _exportImportBusy = false);
@@ -251,9 +250,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Import failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Import failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _exportImportBusy = false);

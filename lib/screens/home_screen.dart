@@ -273,8 +273,8 @@ class _SummaryCard extends StatelessWidget {
               color: isOverTdee
                   ? theme.colorScheme.error
                   : isOverGoal
-                      ? Colors.amber
-                      : null,
+                  ? Colors.amber
+                  : null,
             ),
             const SizedBox(width: 16),
             Expanded(
