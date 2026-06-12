@@ -11,6 +11,9 @@ import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class WaterWidgetProvider : HomeWidgetProvider() {
 
@@ -32,10 +35,16 @@ class WaterWidgetProvider : HomeWidgetProvider() {
         when (action) {
             ACTION_ADD, ACTION_REMOVE -> {
                 val amount  = intent.getIntExtra(EXTRA_AMOUNT, 250)
-                val current = prefs.getInt(KEY_WATER_ML, 0)
-                val newVal  = if (action == ACTION_ADD) (current + amount).coerceAtMost(99999)
-                              else (current - amount).coerceAtLeast(0)
-                prefs.edit().putInt(KEY_WATER_ML, newVal).apply()
+                val today   = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                val stored  = prefs.getString(KEY_DATE, "") ?: ""
+                // If the day has rolled over, treat the previous count as 0
+                val base    = if (stored == today) prefs.getInt(KEY_WATER_ML, 0) else 0
+                val newVal  = if (action == ACTION_ADD) (base + amount).coerceAtMost(99999)
+                              else (base - amount).coerceAtLeast(0)
+                prefs.edit()
+                    .putString(KEY_DATE, today)
+                    .putInt(KEY_WATER_ML, newVal)
+                    .apply()
             }
             ACTION_TOGGLE -> {
                 val current = prefs.getString(KEY_MODE, MODE_ADD) ?: MODE_ADD
@@ -56,6 +65,7 @@ class WaterWidgetProvider : HomeWidgetProvider() {
         const val ACTION_TOGGLE = "nz.calora.calora.widget.TOGGLE_MODE"
         const val EXTRA_AMOUNT  = "amount"
         const val KEY_WATER_ML  = "water_ml"
+        const val KEY_DATE      = "water_date"
         const val KEY_MODE      = "widget_mode"
         const val MODE_ADD      = "add"
         const val MODE_REMOVE   = "remove"
