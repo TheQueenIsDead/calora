@@ -1,8 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../providers/diary_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/database_service.dart';
 import '../services/export_service.dart';
+import '../services/health_service.dart';
 import 'bmr_calculator_screen.dart';
 import 'recipes_screen.dart';
 import 'water_vessels_screen.dart';
@@ -135,6 +138,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               MaterialPageRoute(builder: (_) => const BmrCalculatorScreen()),
             ),
           ),
+          if (defaultTargetPlatform == TargetPlatform.android)
+            SwitchListTile(
+              secondary: const Icon(Icons.directions_run_outlined),
+              title: const Text('Use Health Connect'),
+              subtitle: const Text(
+                'Add measured active calories to your daily expenditure',
+              ),
+              value: settings.useHealthConnect,
+              onChanged: (v) => _toggleHealthConnect(settings, v),
+            ),
           const Divider(),
           const _SectionHeader('Recipes'),
           if (settings.recipes.isEmpty)
@@ -257,6 +270,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } finally {
       if (mounted) setState(() => _exportImportBusy = false);
     }
+  }
+
+  Future<void> _toggleHealthConnect(SettingsProvider settings, bool enable) async {
+    final diary = context.read<DiaryProvider>();
+    if (!enable) {
+      await settings.setUseHealthConnect(false);
+      await diary.refreshActiveCalories();
+      return;
+    }
+    final available = await HealthService.instance.isAvailable();
+    if (!available) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Health Connect is not available on this device. Install it from the Play Store and try again.',
+          ),
+        ),
+      );
+      return;
+    }
+    final granted = await HealthService.instance.requestPermissions();
+    if (!granted) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Permission denied.')),
+      );
+      return;
+    }
+    await settings.setUseHealthConnect(true);
+    await diary.refreshActiveCalories();
   }
 
   Future<void> _editInt(

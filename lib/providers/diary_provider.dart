@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/diary_entry.dart';
 import '../services/database_service.dart';
+import '../services/health_service.dart';
 import '../services/user_preferences.dart';
 
 class DiaryProvider extends ChangeNotifier {
@@ -15,6 +16,7 @@ class DiaryProvider extends ChangeNotifier {
   bool _isLocked = false;
   int _waterMl = 0;
   int _changeToken = 0;
+  int _activeCaloriesToday = 0;
 
   List<DiaryEntry> get entries => _entries;
   DateTime get selectedDate => _selectedDate;
@@ -23,6 +25,7 @@ class DiaryProvider extends ChangeNotifier {
   bool get loading => _loading;
   bool get isLocked => _isLocked;
   int get waterMl => _waterMl;
+  int get activeCaloriesToday => _activeCaloriesToday;
 
   double get totalCalories => _entries.fold(0, (sum, e) => sum + e.calories);
   double get totalFat => _entries.fold(0, (sum, e) => sum + e.fat);
@@ -47,7 +50,34 @@ class DiaryProvider extends ChangeNotifier {
   /// "today" when they backgrounded and the date has since rolled over,
   /// advances to the new today automatically.
   Future<void> handleAppResume() async {
-    if (_wasViewingToday) await loadDay(DateTime.now());
+    if (_wasViewingToday) {
+      await loadDay(DateTime.now());
+    } else {
+      await refreshActiveCalories();
+    }
+  }
+
+  Future<void> refreshActiveCalories() async {
+    if (!_wasViewingToday) {
+      if (_activeCaloriesToday != 0) {
+        _activeCaloriesToday = 0;
+        notifyListeners();
+      }
+      return;
+    }
+    final enabled = await UserPreferences.instance.getUseHealthConnect();
+    if (!enabled) {
+      if (_activeCaloriesToday != 0) {
+        _activeCaloriesToday = 0;
+        notifyListeners();
+      }
+      return;
+    }
+    final kcal = await HealthService.instance.getActiveCaloriesToday();
+    if (kcal == null) return;
+    if (kcal == _activeCaloriesToday) return;
+    _activeCaloriesToday = kcal;
+    notifyListeners();
   }
 
   Future<void> loadDay(DateTime date) async {
@@ -66,6 +96,12 @@ class DiaryProvider extends ChangeNotifier {
     _isLocked = await prefs.getLockState(date);
     _loading = false;
     notifyListeners();
+    if (_wasViewingToday) {
+      unawaited(refreshActiveCalories());
+    } else if (_activeCaloriesToday != 0) {
+      _activeCaloriesToday = 0;
+      notifyListeners();
+    }
   }
 
   Future<void> toggleLock() async {
