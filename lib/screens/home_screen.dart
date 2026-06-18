@@ -20,6 +20,13 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+int _computeExpenditure(DiaryProvider diary, SettingsProvider settings) {
+  if (settings.useHealthConnect && settings.bmr > 0) {
+    return settings.bmr + diary.activeCaloriesToday;
+  }
+  return settings.tdee;
+}
+
 class _HomeScreenState extends State<HomeScreen> {
   // Pinned key so snackbars always target this specific ScaffoldMessenger,
   // bypassing the global messenger that all tab Scaffolds share via IndexedStack.
@@ -91,7 +98,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           onDateSelected: diary.loadDay,
                         ),
                         const SizedBox(height: 12),
-                        _SummaryCard(diary: diary, tdee: settings.tdee),
+                        _SummaryCard(
+                          diary: diary,
+                          expenditure: _computeExpenditure(diary, settings),
+                          showActiveCalories: settings.useHealthConnect,
+                        ),
                         const SizedBox(height: 12),
                         _WaterCard(
                           diary: diary,
@@ -239,17 +250,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _SummaryCard extends StatelessWidget {
   final DiaryProvider diary;
-  final int tdee;
-  const _SummaryCard({required this.diary, required this.tdee});
+  final int expenditure;
+  final bool showActiveCalories;
+  const _SummaryCard({
+    required this.diary,
+    required this.expenditure,
+    this.showActiveCalories = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final remaining = diary.remainingCalories;
     final isOverGoal = remaining < 0;
-    final isOverTdee = tdee > 0 && diary.totalCalories > tdee;
-    final tdeeDeficit = tdee > 0 ? tdee - diary.totalCalories : null;
-    final tdeeIsSet = tdee > 0;
+    final isOverTdee = expenditure > 0 && diary.totalCalories > expenditure;
+    final tdeeDeficit = expenditure > 0 ? expenditure - diary.totalCalories : null;
+    final tdeeIsSet = expenditure > 0;
 
     final Color goalStateColor;
     if (isOverTdee) {
@@ -326,6 +342,27 @@ class _SummaryCard extends StatelessWidget {
                     protein: diary.totalProtein,
                     fat: diary.totalFat,
                   ),
+                  if (showActiveCalories && diary.activeCaloriesToday > 0) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.directions_run,
+                          size: 14,
+                          color: theme.colorScheme.onPrimaryContainer
+                              .withValues(alpha: 0.7),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '+${diary.activeCaloriesToday} kcal active',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onPrimaryContainer
+                                .withValues(alpha: 0.85),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

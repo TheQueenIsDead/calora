@@ -468,7 +468,9 @@ void main() {
           : 0.0;
       expect(progress1, closeTo(0.5, 0.01));
 
-      await diary.addWaterMl(600); // total 1100ml — over target, progress capped
+      await diary.addWaterMl(
+        600,
+      ); // total 1100ml — over target, progress capped
       final progress2 = settings.waterTargetMl > 0
           ? (diary.waterMl / settings.waterTargetMl).clamp(0.0, 1.0)
           : 0.0;

@@ -79,6 +79,18 @@ class UserPreferences {
     await prefs.setInt('tdee_value', tdee);
   }
 
+  // ── Health Connect ────────────────────────────────────────────────────────
+
+  Future<bool> getUseHealthConnect() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('use_health_connect') ?? false;
+  }
+
+  Future<void> setUseHealthConnect(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('use_health_connect', enabled);
+  }
+
   // ── Day lock ──────────────────────────────────────────────────────────────
 
   Future<bool> getLockState(DateTime date) async {
