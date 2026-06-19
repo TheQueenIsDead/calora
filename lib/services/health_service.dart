@@ -20,15 +20,11 @@ class HealthService {
     HealthDataType.STEPS,
   ];
 
-  static const List<HealthDataAccess> _access = [
+  // Read-only integration; derived from _types so adding a type can't drift.
+  static final List<HealthDataAccess> _access = List.filled(
+    _types.length,
     HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-  ];
+  );
 
   Future<void> _ensureConfigured() async {
     if (_configured) return;
