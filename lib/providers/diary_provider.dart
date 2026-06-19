@@ -82,13 +82,16 @@ class DiaryProvider extends ChangeNotifier {
       }
       return;
     }
-    final result = await HealthService.instance.getCaloriesForDay(
-      _selectedDate,
-    );
-    final workouts = await HealthService.instance.getWorkoutsForDay(
-      _selectedDate,
-    );
-    final bmr = await HealthService.instance.getLatestBmrKcal();
+    // Three independent HC IPC roundtrips — run them in parallel so the
+    // home screen doesn't sit on stale data three times as long as needed.
+    final reads = await Future.wait([
+      HealthService.instance.getCaloriesForDay(_selectedDate),
+      HealthService.instance.getWorkoutsForDay(_selectedDate),
+      HealthService.instance.getLatestBmrKcal(),
+    ]);
+    final result = reads[0] as ({int? active, int? total});
+    final workouts = reads[1] as List<HcWorkout>;
+    final bmr = reads[2] as int?;
     final active = result.active ?? 0;
     final total = (result.total ?? 0) > 0 ? result.total : null;
     _activeCalories = active;
