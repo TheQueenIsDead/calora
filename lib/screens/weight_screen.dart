@@ -15,6 +15,7 @@ class WeightScreen extends StatefulWidget {
 class _WeightScreenState extends State<WeightScreen> {
   List<HcWeightPoint> _points = const [];
   bool _loading = true;
+  bool? _lastUseHc;
 
   @override
   void initState() {
@@ -22,11 +23,22 @@ class _WeightScreenState extends State<WeightScreen> {
     _load();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final useHc = context.watch<SettingsProvider>().useHealthConnect;
+    if (_lastUseHc != null && _lastUseHc != useHc) {
+      _load();
+    }
+    _lastUseHc = useHc;
+  }
+
   Future<void> _load() async {
     if (!context.read<SettingsProvider>().useHealthConnect) {
       if (mounted) setState(() => _loading = false);
       return;
     }
+    if (mounted) setState(() => _loading = true);
     final points = await HealthService.instance.getWeightHistoryKg(days: 365);
     if (mounted) {
       setState(() {
@@ -336,6 +348,7 @@ class WeightChartCard extends StatefulWidget {
 class _WeightChartCardState extends State<WeightChartCard> {
   List<HcWeightPoint> _points = const [];
   bool _loading = true;
+  bool? _lastUseHc;
 
   @override
   void initState() {
@@ -343,11 +356,22 @@ class _WeightChartCardState extends State<WeightChartCard> {
     _load();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final useHc = context.watch<SettingsProvider>().useHealthConnect;
+    if (_lastUseHc != null && _lastUseHc != useHc) {
+      _load();
+    }
+    _lastUseHc = useHc;
+  }
+
   Future<void> _load() async {
     if (!context.read<SettingsProvider>().useHealthConnect) {
       if (mounted) setState(() => _loading = false);
       return;
     }
+    if (mounted) setState(() => _loading = true);
     final points = await HealthService.instance.getWeightHistoryKg(days: 90);
     if (mounted) {
       setState(() {
