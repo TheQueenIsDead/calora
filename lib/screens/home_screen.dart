@@ -33,16 +33,16 @@ int _ambientActiveKcal(DiaryProvider diary) {
 
 int _computeExpenditure(DiaryProvider diary, SettingsProvider settings) {
   if (!settings.useHealthConnect) return settings.tdee;
-  // Prefer HC's BMR (kept up to date by sources like smart scales); fall back
-  // to the user's calculated BMR. If neither, defer to stored TDEE.
-  final bmr = diary.bmrHc ?? settings.bmr;
-  if (bmr <= 0) return settings.tdee;
-  // Projected full-day expenditure: BMR plus whichever explicit movement
-  // stream (workouts vs the active aggregate) is larger.
   final workouts = _workoutSum(diary);
   final active = diary.activeCalories;
   final aboveBasal = workouts > active ? workouts : active;
-  return bmr + aboveBasal;
+  // Prefer HC's BMR, then the user's calculated BMR. If both are zero we
+  // fall back to the stored TDEE but still add HC activity on top so the
+  // Activities card and the Out figure agree. This can slightly double-count
+  // the activity multiplier baked into TDEE; setting a BMR removes that.
+  final bmr = diary.bmrHc ?? settings.bmr;
+  if (bmr > 0) return bmr + aboveBasal;
+  return settings.tdee + aboveBasal;
 }
 
 
