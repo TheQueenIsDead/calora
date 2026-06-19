@@ -107,7 +107,17 @@ class _RootScaffoldState extends State<_RootScaffold>
     _activeCaloriesTimer?.cancel();
     _activeCaloriesTimer = Timer.periodic(_activeCaloriesInterval, (_) {
       if (!mounted) return;
-      context.read<DiaryProvider>().refreshActiveCalories();
+      final diary = context.read<DiaryProvider>();
+      final now = DateTime.now();
+      final selected = diary.selectedDate;
+      final viewingToday = selected.year == now.year &&
+          selected.month == now.month &&
+          selected.day == now.day;
+      // Past days don't change minute-to-minute, so skip the periodic HC
+      // reads when the user is browsing history. loadDay still refreshes
+      // when they switch days.
+      if (!viewingToday) return;
+      diary.refreshActiveCalories();
     });
   }
 
