@@ -11,7 +11,6 @@ class HealthService {
 
   static const List<HealthDataType> _types = [
     HealthDataType.ACTIVE_ENERGY_BURNED,
-    HealthDataType.TOTAL_CALORIES_BURNED,
     HealthDataType.BASAL_ENERGY_BURNED,
     HealthDataType.WEIGHT,
     HealthDataType.HEIGHT,
@@ -22,7 +21,6 @@ class HealthService {
   ];
 
   static const List<HealthDataAccess> _access = [
-    HealthDataAccess.READ,
     HealthDataAccess.READ,
     HealthDataAccess.READ,
     HealthDataAccess.READ,
@@ -55,11 +53,11 @@ class HealthService {
     return await _health.requestAuthorization(_types, permissions: _access);
   }
 
-  /// Returns (active, total) kcal for [date]. Either or both may be null
-  /// if the data type isn't populated in Health Connect. Callers prefer
-  /// total when present (it already includes basal + active), otherwise
-  /// add active onto a separately-computed BMR.
-  Future<({int? active, int? total})> getCaloriesForDay(DateTime date) async {
+  /// Sum of ACTIVE_ENERGY_BURNED records for [date] in kcal, or null on error.
+  /// We don't sum TOTAL_CALORIES_BURNED — that stream is system-estimator-only
+  /// on most devices and misses manually-logged workouts, so the expenditure
+  /// model builds on BMR + active/workouts rather than trusting Total.
+  Future<int?> getActiveCaloriesForDay(DateTime date) async {
     await _ensureConfigured();
     final start = DateTime(date.year, date.month, date.day);
     final now = DateTime.now();
@@ -68,30 +66,9 @@ class HealthService {
         ? now
         : start.add(const Duration(days: 1));
     final dateStr = start.toIso8601String().substring(0, 10);
-    final active = await _sumKcal(
-      HealthDataType.ACTIVE_ENERGY_BURNED,
-      start,
-      end,
-      dateStr,
-    );
-    final total = await _sumKcal(
-      HealthDataType.TOTAL_CALORIES_BURNED,
-      start,
-      end,
-      dateStr,
-    );
-    return (active: active, total: total);
-  }
-
-  Future<int?> _sumKcal(
-    HealthDataType type,
-    DateTime start,
-    DateTime end,
-    String dateStr,
-  ) async {
     try {
       final points = await _health.getHealthDataFromTypes(
-        types: [type],
+        types: [HealthDataType.ACTIVE_ENERGY_BURNED],
         startTime: start,
         endTime: end,
       );
@@ -103,12 +80,12 @@ class HealthService {
         }
       }
       debugPrint(
-        '[HealthService] ${type.name} $dateStr: '
+        '[HealthService] ACTIVE_ENERGY_BURNED $dateStr: '
         '${points.length} point(s), total ${total.round()} kcal',
       );
       return total.round();
     } catch (e, st) {
-      debugPrint('[HealthService] ${type.name} error: $e\n$st');
+      debugPrint('[HealthService] active calories error: $e\n$st');
       return null;
     }
   }
