@@ -575,8 +575,15 @@ class _SummaryStats extends StatelessWidget {
   });
 
   static int _currentStreak(Map<String, double> dailyCalories) {
-    var streak = 0;
+    // Anchor the walk at today only if today has data; otherwise start at
+    // yesterday. Otherwise an in-progress streak resets every morning before
+    // the first meal is logged.
     var date = DateTime.now();
+    final todayKey = date.toIso8601String().substring(0, 10);
+    if ((dailyCalories[todayKey] ?? 0) <= 0) {
+      date = date.subtract(const Duration(days: 1));
+    }
+    var streak = 0;
     while (true) {
       final key = date.toIso8601String().substring(0, 10);
       if ((dailyCalories[key] ?? 0) <= 0) break;
