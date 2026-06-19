@@ -203,30 +203,35 @@ class HealthService {
   Future<List<HcWorkout>> getWorkoutsForDay(DateTime date) async {
     await _ensureConfigured();
     final start = DateTime(date.year, date.month, date.day);
+    final dayEnd = start.add(const Duration(days: 1));
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final end = start.isAtSameMomentAs(today)
-        ? now
-        : start.add(const Duration(days: 1));
+    final queryEnd = start.isAtSameMomentAs(today) ? now : dayEnd;
     try {
       final points = await _health.getHealthDataFromTypes(
         types: [HealthDataType.WORKOUT],
         startTime: start,
-        endTime: end,
+        endTime: queryEnd,
       );
       final workouts = <HcWorkout>[];
       for (final p in points) {
         final v = p.value;
-        if (v is WorkoutHealthValue) {
-          workouts.add(
-            HcWorkout(
-              activityType: v.workoutActivityType,
-              kcal: v.totalEnergyBurned,
-              start: p.dateFrom,
-              end: p.dateTo,
-            ),
-          );
-        }
+        if (v is! WorkoutHealthValue) continue;
+        // HC returns any session that overlaps [start, queryEnd], so a
+        // workout crossing midnight would surface in two consecutive days.
+        // Assign it to the day containing its midpoint instead.
+        final midpoint = p.dateFrom.add(
+          Duration(milliseconds: p.dateTo.difference(p.dateFrom).inMilliseconds ~/ 2),
+        );
+        if (midpoint.isBefore(start) || !midpoint.isBefore(dayEnd)) continue;
+        workouts.add(
+          HcWorkout(
+            activityType: v.workoutActivityType,
+            kcal: v.totalEnergyBurned,
+            start: p.dateFrom,
+            end: p.dateTo,
+          ),
+        );
       }
       workouts.sort((a, b) => a.start.compareTo(b.start));
       debugPrint(
