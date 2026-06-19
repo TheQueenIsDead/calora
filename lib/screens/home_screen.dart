@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:health/health.dart' show HealthWorkoutActivityType;
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/diary_entry.dart';
@@ -20,12 +21,30 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-int _computeExpenditure(DiaryProvider diary, SettingsProvider settings) {
-  if (settings.useHealthConnect && settings.bmr > 0) {
-    return settings.bmr + diary.activeCaloriesToday;
-  }
-  return settings.tdee;
+int _workoutSum(DiaryProvider diary) =>
+    diary.workouts.fold<int>(0, (s, w) => s + (w.kcal ?? 0));
+
+/// Active movement not accounted for by an explicit workout. We can't dedupe
+/// per-record without time matching, so approximate as max(0, active - workouts).
+int _ambientActiveKcal(DiaryProvider diary) {
+  final delta = diary.activeCalories - _workoutSum(diary);
+  return delta > 0 ? delta : 0;
 }
+
+int _computeExpenditure(DiaryProvider diary, SettingsProvider settings) {
+  if (!settings.useHealthConnect) return settings.tdee;
+  // Prefer HC's BMR (kept up to date by sources like smart scales); fall back
+  // to the user's calculated BMR. If neither, defer to stored TDEE.
+  final bmr = diary.bmrHc ?? settings.bmr;
+  if (bmr <= 0) return settings.tdee;
+  // Projected full-day expenditure: BMR plus whichever explicit movement
+  // stream (workouts vs the active aggregate) is larger.
+  final workouts = _workoutSum(diary);
+  final active = diary.activeCalories;
+  final aboveBasal = workouts > active ? workouts : active;
+  return bmr + aboveBasal;
+}
+
 
 class _HomeScreenState extends State<HomeScreen> {
   // Pinned key so snackbars always target this specific ScaffoldMessenger,
@@ -101,7 +120,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         _SummaryCard(
                           diary: diary,
                           expenditure: _computeExpenditure(diary, settings),
-                          showActiveCalories: settings.useHealthConnect,
                         ),
                         const SizedBox(height: 12),
                         _WaterCard(
@@ -110,6 +128,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           waterTargetMl: settings.waterTargetMl,
                           vessels: settings.vessels,
                         ),
+                        if (settings.useHealthConnect &&
+                            (diary.workouts.isNotEmpty ||
+                                _ambientActiveKcal(diary) > 0)) ...[
+                          const SizedBox(height: 12),
+                          _ActivitiesCard(
+                            workouts: diary.workouts,
+                            ambientActiveKcal: _ambientActiveKcal(diary),
+                          ),
+                        ],
                         const SizedBox(height: 20),
                         for (final meal in Meal.values)
                           MealSection(
@@ -251,12 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
 class _SummaryCard extends StatelessWidget {
   final DiaryProvider diary;
   final int expenditure;
-  final bool showActiveCalories;
-  const _SummaryCard({
-    required this.diary,
-    required this.expenditure,
-    this.showActiveCalories = false,
-  });
+  const _SummaryCard({required this.diary, required this.expenditure});
 
   @override
   Widget build(BuildContext context) {
@@ -264,8 +286,9 @@ class _SummaryCard extends StatelessWidget {
     final remaining = diary.remainingCalories;
     final isOverGoal = remaining < 0;
     final isOverTdee = expenditure > 0 && diary.totalCalories > expenditure;
-    final tdeeDeficit = expenditure > 0 ? expenditure - diary.totalCalories : null;
-    final tdeeIsSet = expenditure > 0;
+    final intake = diary.totalCalories;
+    final deficit = expenditure > 0 ? expenditure - intake : null;
+    final expenditureSet = expenditure > 0;
 
     final Color goalStateColor;
     if (isOverTdee) {
@@ -275,6 +298,8 @@ class _SummaryCard extends StatelessWidget {
     } else {
       goalStateColor = theme.colorScheme.onPrimaryContainer;
     }
+    final mutedColor = theme.colorScheme.onPrimaryContainer
+        .withValues(alpha: 0.7);
 
     return Card(
       elevation: 0,
@@ -309,29 +334,17 @@ class _SummaryCard extends StatelessWidget {
                               : 'Remaining',
                           value: '${remaining.abs().toStringAsFixed(0)} kcal',
                           valueColor: goalStateColor,
-                          labelColor: theme.colorScheme.onPrimaryContainer
-                              .withValues(alpha: 0.7),
+                          labelColor: mutedColor,
                         ),
                       ),
                       Expanded(
-                        child: _StatBlock(
-                          label: tdeeIsSet
-                              ? (tdeeDeficit! > 0
-                                    ? 'TDEE deficit'
-                                    : 'Above TDEE')
-                              : 'TDEE deficit',
-                          value: tdeeIsSet
-                              ? '${tdeeDeficit!.abs().toStringAsFixed(0)} kcal'
-                              : '—',
-                          valueColor: tdeeIsSet
-                              ? (tdeeDeficit! > 0
-                                    ? Colors.lightGreen.shade300
-                                    : theme.colorScheme.error)
-                              : theme.colorScheme.onPrimaryContainer.withValues(
-                                  alpha: 0.35,
-                                ),
-                          labelColor: theme.colorScheme.onPrimaryContainer
-                              .withValues(alpha: 0.7),
+                        child: _InOutDeficit(
+                          intake: intake,
+                          expenditure: expenditure,
+                          deficit: deficit,
+                          expenditureSet: expenditureSet,
+                          mutedColor: mutedColor,
+                          valueColor: theme.colorScheme.onPrimaryContainer,
                         ),
                       ),
                     ],
@@ -342,27 +355,6 @@ class _SummaryCard extends StatelessWidget {
                     protein: diary.totalProtein,
                     fat: diary.totalFat,
                   ),
-                  if (showActiveCalories && diary.activeCaloriesToday > 0) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.directions_run,
-                          size: 14,
-                          color: theme.colorScheme.onPrimaryContainer
-                              .withValues(alpha: 0.7),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '+${diary.activeCaloriesToday} kcal active',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onPrimaryContainer
-                                .withValues(alpha: 0.85),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -370,6 +362,181 @@ class _SummaryCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _ActivitiesCard extends StatelessWidget {
+  final List<HcWorkout> workouts;
+  final int ambientActiveKcal;
+  const _ActivitiesCard({
+    required this.workouts,
+    required this.ambientActiveKcal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final workoutSum = workouts.fold<int>(0, (s, w) => s + (w.kcal ?? 0));
+    final totalKcal = workoutSum + ambientActiveKcal;
+    return Card(
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      child: Theme(
+        // ExpansionTile draws a divider on top by default; suppress it.
+        data: theme.copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+          leading: Icon(
+            Icons.fitness_center,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          title: Text(
+            'Health Connect activities',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          subtitle: Text(
+            '$totalKcal kcal',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          children: [
+            for (final w in workouts) _ActivityRow(workout: w),
+            if (ambientActiveKcal > 0) _AmbientRow(kcal: ambientActiveKcal),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AmbientRow extends StatelessWidget {
+  final int kcal;
+  const _AmbientRow({required this.kcal});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(
+            Icons.directions_walk,
+            size: 20,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Ambient movement', style: theme.textTheme.bodyMedium),
+                Text(
+                  'Active calories outside tracked workouts',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '$kcal kcal',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityRow extends StatelessWidget {
+  final HcWorkout workout;
+  const _ActivityRow({required this.workout});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final kcal = workout.kcal;
+    final timeStr = DateFormat.jm().format(workout.start);
+    final mins = workout.duration.inMinutes;
+    final durStr = mins >= 60
+        ? '${mins ~/ 60}h ${mins % 60}m'
+        : '${mins}m';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(
+            _iconFor(workout.activityType),
+            size: 20,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _friendly(workout.activityType),
+                  style: theme.textTheme.bodyMedium,
+                ),
+                Text(
+                  '$timeStr  ·  $durStr',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (kcal != null)
+            Text(
+              '$kcal kcal',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _friendly(HealthWorkoutActivityType type) {
+    if (type.name == 'OTHER') return 'Activity';
+    final parts = type.name.split('_');
+    if (parts.isEmpty) return type.name;
+    return parts
+        .map(
+          (p) => p.isEmpty
+              ? p
+              : p[0].toUpperCase() + p.substring(1).toLowerCase(),
+        )
+        .join(' ');
+  }
+
+  static IconData _iconFor(HealthWorkoutActivityType type) {
+    final name = type.name;
+    if (name.contains('RUNNING')) return Icons.directions_run;
+    if (name.contains('WALKING')) return Icons.directions_walk;
+    if (name.contains('BIKING') || name.contains('CYCLING')) {
+      return Icons.directions_bike;
+    }
+    if (name.contains('SWIMMING')) return Icons.pool;
+    if (name.contains('STRENGTH') || name.contains('WEIGHT')) {
+      return Icons.fitness_center;
+    }
+    if (name.contains('YOGA')) return Icons.self_improvement;
+    if (name.contains('HIKING')) return Icons.terrain;
+    return Icons.local_fire_department;
   }
 }
 
@@ -715,6 +882,76 @@ class _WeekStripState extends State<_WeekStrip> {
           }),
         ),
       ),
+    );
+  }
+}
+
+class _InOutDeficit extends StatelessWidget {
+  final double intake;
+  final int expenditure;
+  final double? deficit;
+  final bool expenditureSet;
+  final Color mutedColor;
+  final Color valueColor;
+
+  const _InOutDeficit({
+    required this.intake,
+    required this.expenditure,
+    required this.deficit,
+    required this.expenditureSet,
+    required this.mutedColor,
+    required this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelStyle = theme.textTheme.labelSmall?.copyWith(color: mutedColor);
+    final valueStyle = theme.textTheme.bodyMedium?.copyWith(color: valueColor);
+
+    final inSurplus = (deficit ?? 0) < 0;
+    final deficitLabel = !expenditureSet
+        ? 'Deficit'
+        : inSurplus
+        ? 'Surplus'
+        : 'Deficit';
+    final deficitText = expenditureSet
+        ? deficit!.abs().toStringAsFixed(0)
+        : '—';
+    final deficitColor = !expenditureSet
+        ? mutedColor
+        : inSurplus
+        ? theme.colorScheme.error
+        : Colors.lightGreen.shade300;
+
+    Widget row(String label, String value, TextStyle? style) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: Row(
+        children: [
+          Expanded(child: Text(label, style: labelStyle)),
+          Text(value, style: style),
+        ],
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        row('In', intake.toStringAsFixed(0), valueStyle),
+        row(
+          'Out',
+          expenditureSet ? expenditure.toString() : '—',
+          valueStyle,
+        ),
+        row(
+          deficitLabel,
+          deficitText,
+          valueStyle?.copyWith(
+            color: deficitColor,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 }

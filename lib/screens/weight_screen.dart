@@ -1,8 +1,9 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../models/weight_entry.dart';
-import '../services/database_service.dart';
+import 'package:provider/provider.dart';
+import '../providers/settings_provider.dart';
+import '../services/health_service.dart';
 
 class WeightScreen extends StatefulWidget {
   const WeightScreen({super.key});
@@ -12,7 +13,7 @@ class WeightScreen extends StatefulWidget {
 }
 
 class _WeightScreenState extends State<WeightScreen> {
-  List<WeightEntry> _entries = [];
+  List<HcWeightPoint> _points = const [];
   bool _loading = true;
 
   @override
@@ -22,68 +23,36 @@ class _WeightScreenState extends State<WeightScreen> {
   }
 
   Future<void> _load() async {
-    final entries = await DatabaseService.instance.getWeightHistory(days: 365);
+    if (!context.read<SettingsProvider>().useHealthConnect) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+    final points = await HealthService.instance.getWeightHistoryKg(days: 365);
     if (mounted) {
       setState(() {
-        _entries = entries;
+        _points = points;
         _loading = false;
       });
     }
   }
 
-  Future<void> _logWeight() async {
-    final controller = TextEditingController();
-    final latest = _entries.isNotEmpty ? _entries.last.kg : null;
-    if (latest != null) controller.text = latest.toStringAsFixed(1);
-
-    final result = await showDialog<double>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log weight'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(hintText: '0.0', suffixText: 'kg'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final kg = double.tryParse(controller.text.trim());
-              if (kg != null && kg > 0) Navigator.pop(ctx, kg);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-
-    if (result == null || !mounted) return;
-    await DatabaseService.instance.saveWeight(DateTime.now(), result);
-    await _load();
-  }
-
   @override
   Widget build(BuildContext context) {
+    final useHc = context.watch<SettingsProvider>().useHealthConnect;
     return Scaffold(
       appBar: AppBar(title: const Text('Weight')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _logWeight,
-        icon: const Icon(Icons.add),
-        label: const Text('Log weight'),
-      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 children: [
-                  if (_entries.length >= 2) ...[
+                  if (!useHc)
+                    const _HealthConnectEmpty()
+                  else if (_points.length < 2)
+                    const _NoDataEmpty()
+                  else ...[
                     Card(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(8, 20, 16, 8),
@@ -102,45 +71,28 @@ class _WeightScreenState extends State<WeightScreen> {
                             ),
                             SizedBox(
                               height: 200,
-                              child: _WeightLineChart(entries: _entries),
+                              child: _WeightLineChart(points: _points),
                             ),
                           ],
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
-                  ],
-                  if (_entries.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 48),
-                      child: Center(
-                        child: Text(
-                          'No weight entries yet.\nTap + to log your first.',
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    )
-                  else
                     Card(
                       child: Column(
                         children: [
-                          for (int i = _entries.length - 1; i >= 0; i--) ...[
-                            if (i < _entries.length - 1)
+                          for (int i = _points.length - 1; i >= 0; i--) ...[
+                            if (i < _points.length - 1)
                               const Divider(height: 1, indent: 16),
                             _WeightTile(
-                              entry: _entries[i],
-                              prev: i > 0 ? _entries[i - 1] : null,
-                              onDelete: () async {
-                                await DatabaseService.instance.deleteWeight(
-                                  _entries[i].id,
-                                );
-                                await _load();
-                              },
+                              point: _points[i],
+                              prev: i > 0 ? _points[i - 1] : null,
                             ),
                           ],
                         ],
                       ),
                     ),
+                  ],
                 ],
               ),
             ),
@@ -148,21 +100,86 @@ class _WeightScreenState extends State<WeightScreen> {
   }
 }
 
-class _WeightTile extends StatelessWidget {
-  final WeightEntry entry;
-  final WeightEntry? prev;
-  final VoidCallback onDelete;
-
-  const _WeightTile({
-    required this.entry,
-    required this.prev,
-    required this.onDelete,
-  });
+class _HealthConnectEmpty extends StatelessWidget {
+  const _HealthConnectEmpty();
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final delta = prev != null ? entry.kg - prev!.kg : null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      child: Column(
+        children: [
+          Icon(
+            Icons.scale_outlined,
+            size: 48,
+            color: theme.colorScheme.outlineVariant,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Weight is sourced from Health Connect.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Enable Health Connect in Settings to see your weight history.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NoDataEmpty extends StatelessWidget {
+  const _NoDataEmpty();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      child: Column(
+        children: [
+          Icon(
+            Icons.scale_outlined,
+            size: 48,
+            color: theme.colorScheme.outlineVariant,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No weight data in Health Connect yet.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Log weight from your scale, Fit, or another connected app.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WeightTile extends StatelessWidget {
+  final HcWeightPoint point;
+  final HcWeightPoint? prev;
+
+  const _WeightTile({required this.point, required this.prev});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final delta = prev != null ? point.kg - prev!.kg : null;
     final deltaStr = delta == null
         ? null
         : delta >= 0
@@ -175,52 +192,46 @@ class _WeightTile extends StatelessWidget {
         : theme.colorScheme.primary;
 
     return ListTile(
-      title: Text('${entry.kg.toStringAsFixed(1)} kg'),
-      subtitle: Text(DateFormat('EEE, d MMM y').format(entry.date)),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (deltaStr != null)
-            Text(
+      title: Text('${point.kg.toStringAsFixed(1)} kg'),
+      subtitle: Text(DateFormat('EEE, d MMM y').format(point.date)),
+      trailing: deltaStr == null
+          ? null
+          : Text(
               deltaStr,
               style: theme.textTheme.bodySmall?.copyWith(color: deltaColor),
             ),
-          const SizedBox(width: 4),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 20),
-            color: theme.colorScheme.onSurfaceVariant,
-            onPressed: onDelete,
-          ),
-        ],
-      ),
     );
   }
 }
 
-// ── Shared line chart (no Card wrapper) ──────────────────────────────────────
+// ── Date-based line chart ────────────────────────────────────────────────────
 
 class _WeightLineChart extends StatelessWidget {
-  final List<WeightEntry> entries;
-  const _WeightLineChart({required this.entries});
+  final List<HcWeightPoint> points;
+  const _WeightLineChart({required this.points});
+
+  static double _epochDays(DateTime d) =>
+      d.toUtc().millisecondsSinceEpoch / Duration.millisecondsPerDay;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final spots = entries
-        .asMap()
-        .entries
-        .map((e) => FlSpot(e.key.toDouble(), e.value.kg))
+    final firstX = _epochDays(points.first.date);
+    final lastX = _epochDays(points.last.date);
+    final spots = points
+        .map((p) => FlSpot(_epochDays(p.date) - firstX, p.kg))
         .toList();
-
-    final minY = (entries.map((e) => e.kg).reduce((a, b) => a < b ? a : b) - 2)
-        .floorToDouble();
-    final maxY = (entries.map((e) => e.kg).reduce((a, b) => a > b ? a : b) + 2)
-        .ceilToDouble();
+    final kgValues = points.map((p) => p.kg);
+    final minY = (kgValues.reduce((a, b) => a < b ? a : b) - 2).floorToDouble();
+    final maxY = (kgValues.reduce((a, b) => a > b ? a : b) + 2).ceilToDouble();
+    final spanDays = (lastX - firstX).clamp(1.0, double.infinity);
 
     return LineChart(
       LineChartData(
         minY: minY,
         maxY: maxY,
+        minX: 0,
+        maxX: spanDays,
         lineBarsData: [
           LineChartBarData(
             spots: spots,
@@ -229,7 +240,7 @@ class _WeightLineChart extends StatelessWidget {
             color: theme.colorScheme.primary,
             barWidth: 2,
             dotData: FlDotData(
-              show: entries.length <= 30,
+              show: points.length <= 30,
               getDotPainter: (spot, xPercentage, bar, barIndex) =>
                   FlDotCirclePainter(
                     radius: 3,
@@ -273,19 +284,16 @@ class _WeightLineChart extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              interval: (spanDays / 3).clamp(1, double.infinity),
               getTitlesWidget: (v, _) {
-                final idx = v.toInt();
-                if (idx < 0 || idx >= entries.length) {
-                  return const SizedBox.shrink();
-                }
-                final step = ((entries.length - 1) / 3).ceil().clamp(1, 999);
-                if (idx % step != 0 && idx != entries.length - 1) {
-                  return const SizedBox.shrink();
-                }
+                final date = DateTime.fromMillisecondsSinceEpoch(
+                  ((firstX + v) * Duration.millisecondsPerDay).round(),
+                  isUtc: true,
+                ).toLocal();
                 return Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    DateFormat('d MMM').format(entries[idx].date),
+                    DateFormat('d MMM').format(date),
                     style: theme.textTheme.labelSmall,
                   ),
                 );
@@ -295,13 +303,14 @@ class _WeightLineChart extends StatelessWidget {
         ),
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
-            getTooltipItems: (spots) => spots.map((s) {
-              final idx = s.x.toInt();
-              if (idx < 0 || idx >= entries.length) return null;
-              final entry = entries[idx];
+            getTooltipItems: (touched) => touched.map((s) {
+              final date = DateTime.fromMillisecondsSinceEpoch(
+                ((firstX + s.x) * Duration.millisecondsPerDay).round(),
+                isUtc: true,
+              ).toLocal();
               return LineTooltipItem(
-                '${DateFormat('d MMM').format(entry.date)}\n'
-                '${entry.kg.toStringAsFixed(1)} kg',
+                '${DateFormat('d MMM').format(date)}\n'
+                '${s.y.toStringAsFixed(1)} kg',
                 theme.textTheme.labelSmall!.copyWith(
                   color: theme.colorScheme.onSurface,
                 ),
@@ -325,7 +334,7 @@ class WeightChartCard extends StatefulWidget {
 }
 
 class _WeightChartCardState extends State<WeightChartCard> {
-  List<WeightEntry> _entries = [];
+  List<HcWeightPoint> _points = const [];
   bool _loading = true;
 
   @override
@@ -335,54 +344,23 @@ class _WeightChartCardState extends State<WeightChartCard> {
   }
 
   Future<void> _load() async {
-    final entries = await DatabaseService.instance.getWeightHistory(days: 90);
+    if (!context.read<SettingsProvider>().useHealthConnect) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+    final points = await HealthService.instance.getWeightHistoryKg(days: 90);
     if (mounted) {
       setState(() {
-        _entries = entries;
+        _points = points;
         _loading = false;
       });
     }
   }
 
-  Future<void> _logWeight() async {
-    final controller = TextEditingController();
-    final latest = _entries.isNotEmpty ? _entries.last.kg : null;
-    if (latest != null) controller.text = latest.toStringAsFixed(1);
-
-    final result = await showDialog<double>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log weight'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(hintText: '0.0', suffixText: 'kg'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final kg = double.tryParse(controller.text.trim());
-              if (kg != null && kg > 0) Navigator.pop(ctx, kg);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-
-    if (result == null || !mounted) return;
-    await DatabaseService.instance.saveWeight(DateTime.now(), result);
-    await _load();
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final useHc = context.watch<SettingsProvider>().useHealthConnect;
 
     return Card(
       child: Padding(
@@ -405,11 +383,6 @@ class _WeightChartCardState extends State<WeightChartCard> {
                             style: theme.textTheme.titleMedium,
                           ),
                         ),
-                        TextButton.icon(
-                          onPressed: _logWeight,
-                          icon: const Icon(Icons.add, size: 16),
-                          label: const Text('Log'),
-                        ),
                         TextButton(
                           onPressed: () => Navigator.push(
                             context,
@@ -422,11 +395,21 @@ class _WeightChartCardState extends State<WeightChartCard> {
                       ],
                     ),
                   ),
-                  if (_entries.length < 2)
+                  if (!useHc)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
                       child: Text(
-                        'Log at least 2 entries to see your weight trend.',
+                        'Enable Health Connect in Settings to track weight.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    )
+                  else if (_points.length < 2)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+                      child: Text(
+                        'Add at least 2 weight entries in Health Connect to see your trend.',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -435,7 +418,7 @@ class _WeightChartCardState extends State<WeightChartCard> {
                   else
                     SizedBox(
                       height: 200,
-                      child: _WeightLineChart(entries: _entries),
+                      child: _WeightLineChart(points: _points),
                     ),
                 ],
               ),

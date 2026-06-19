@@ -278,9 +278,6 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
                             fillColor: heightLocked
                                 ? theme.colorScheme.surfaceContainerHighest
                                 : null,
-                            suffixIcon: heightLocked
-                                ? const Icon(Icons.sync, size: 18)
-                                : null,
                           ),
                           onChanged: (_) {
                             setState(() {});
@@ -303,9 +300,6 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
                             filled: weightLocked,
                             fillColor: weightLocked
                                 ? theme.colorScheme.surfaceContainerHighest
-                                : null,
-                            suffixIcon: weightLocked
-                                ? const Icon(Icons.sync, size: 18)
                                 : null,
                           ),
                           onChanged: (_) {

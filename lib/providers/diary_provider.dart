@@ -6,6 +6,10 @@ import '../services/database_service.dart';
 import '../services/health_service.dart';
 import '../services/user_preferences.dart';
 
+// HcWorkout is re-exported through this provider so screens don't need to
+// import HealthService directly.
+export '../services/health_service.dart' show HcWorkout;
+
 class DiaryProvider extends ChangeNotifier {
   List<DiaryEntry> _entries = [];
   DateTime _selectedDate = DateTime.now();
@@ -16,7 +20,10 @@ class DiaryProvider extends ChangeNotifier {
   bool _isLocked = false;
   int _waterMl = 0;
   int _changeToken = 0;
-  int _activeCaloriesToday = 0;
+  int _activeCalories = 0;
+  int? _totalCaloriesHc;
+  int? _bmrHc;
+  List<HcWorkout> _workouts = const [];
 
   List<DiaryEntry> get entries => _entries;
   DateTime get selectedDate => _selectedDate;
@@ -25,7 +32,10 @@ class DiaryProvider extends ChangeNotifier {
   bool get loading => _loading;
   bool get isLocked => _isLocked;
   int get waterMl => _waterMl;
-  int get activeCaloriesToday => _activeCaloriesToday;
+  int get activeCalories => _activeCalories;
+  int? get totalCaloriesHc => _totalCaloriesHc;
+  int? get bmrHc => _bmrHc;
+  List<HcWorkout> get workouts => _workouts;
 
   double get totalCalories => _entries.fold(0, (sum, e) => sum + e.calories);
   double get totalFat => _entries.fold(0, (sum, e) => sum + e.fat);
@@ -58,25 +68,33 @@ class DiaryProvider extends ChangeNotifier {
   }
 
   Future<void> refreshActiveCalories() async {
-    if (!_wasViewingToday) {
-      if (_activeCaloriesToday != 0) {
-        _activeCaloriesToday = 0;
-        notifyListeners();
-      }
-      return;
-    }
     final enabled = await UserPreferences.instance.getUseHealthConnect();
     if (!enabled) {
-      if (_activeCaloriesToday != 0) {
-        _activeCaloriesToday = 0;
+      if (_activeCalories != 0 ||
+          _totalCaloriesHc != null ||
+          _bmrHc != null ||
+          _workouts.isNotEmpty) {
+        _activeCalories = 0;
+        _totalCaloriesHc = null;
+        _bmrHc = null;
+        _workouts = const [];
         notifyListeners();
       }
       return;
     }
-    final kcal = await HealthService.instance.getActiveCaloriesToday();
-    if (kcal == null) return;
-    if (kcal == _activeCaloriesToday) return;
-    _activeCaloriesToday = kcal;
+    final result = await HealthService.instance.getCaloriesForDay(
+      _selectedDate,
+    );
+    final workouts = await HealthService.instance.getWorkoutsForDay(
+      _selectedDate,
+    );
+    final bmr = await HealthService.instance.getLatestBmrKcal();
+    final active = result.active ?? 0;
+    final total = (result.total ?? 0) > 0 ? result.total : null;
+    _activeCalories = active;
+    _totalCaloriesHc = total;
+    _bmrHc = bmr;
+    _workouts = workouts;
     notifyListeners();
   }
 
@@ -96,12 +114,7 @@ class DiaryProvider extends ChangeNotifier {
     _isLocked = await prefs.getLockState(date);
     _loading = false;
     notifyListeners();
-    if (_wasViewingToday) {
-      unawaited(refreshActiveCalories());
-    } else if (_activeCaloriesToday != 0) {
-      _activeCaloriesToday = 0;
-      notifyListeners();
-    }
+    unawaited(refreshActiveCalories());
   }
 
   Future<void> toggleLock() async {

@@ -138,7 +138,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               MaterialPageRoute(builder: (_) => const BmrCalculatorScreen()),
             ),
           ),
-          if (defaultTargetPlatform == TargetPlatform.android)
+          if (defaultTargetPlatform == TargetPlatform.android) ...[
             SwitchListTile(
               secondary: const Icon(Icons.directions_run_outlined),
               title: const Text('Use Health Connect'),
@@ -148,6 +148,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               value: settings.useHealthConnect,
               onChanged: (v) => _toggleHealthConnect(settings, v),
             ),
+            if (settings.useHealthConnect)
+              ListTile(
+                leading: const Icon(Icons.tune_outlined),
+                title: const Text('Open Health Connect'),
+                subtitle: const Text(
+                  'Then tap "App permissions" → Calora to grant data types',
+                ),
+                trailing: const Icon(Icons.open_in_new, size: 18),
+                onTap: HealthService.instance.openHealthConnectPermissions,
+              ),
+          ],
           const Divider(),
           const _SectionHeader('Recipes'),
           if (settings.recipes.isEmpty)
