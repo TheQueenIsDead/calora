@@ -89,6 +89,11 @@ class DiaryProvider extends ChangeNotifier {
       HealthService.instance.getWorkoutsForDay(_selectedDate),
       HealthService.instance.getLatestBmrKcal(),
     ]);
+    // Re-check the toggle after the awaits — the user can disable HC while
+    // this refresh is in flight, and the cleanup-branch above would have
+    // already run before our results land.
+    final stillEnabled = await UserPreferences.instance.getUseHealthConnect();
+    if (!stillEnabled) return;
     final result = reads[0] as ({int? active, int? total});
     final workouts = reads[1] as List<HcWorkout>;
     final bmr = reads[2] as int?;
