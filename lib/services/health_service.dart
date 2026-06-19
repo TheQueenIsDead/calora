@@ -152,19 +152,28 @@ class HealthService {
     return (m * 100).round();
   }
 
-  /// HC stores BMR sporadically (only when scales/profile push an update),
-  /// so we just want the most recent record regardless of how old.
+  /// HC may write BMR (BasalEnergyBurned) at a high rate from wearables, so
+  /// we bound the lookup window — pulling the full history every 5-min tick
+  /// would be wasteful.
   Future<int?> getLatestBmrKcal() async {
-    final v = await _getLatestNumeric(HealthDataType.BASAL_ENERGY_BURNED);
+    final v = await _getLatestNumeric(
+      HealthDataType.BASAL_ENERGY_BURNED,
+      start: DateTime.now().subtract(const Duration(days: 30)),
+    );
     return v?.round();
   }
 
-  /// Returns the most recent numeric value of [type] anywhere in HC's
-  /// record store — searches from Unix epoch to now.
-  Future<double?> _getLatestNumeric(HealthDataType type) async {
+  /// Returns the most recent numeric value of [type] in HC's record store.
+  /// Defaults to scanning from the Unix epoch — fine for sporadic series
+  /// (height, weight) but callers should pass an explicit [start] for series
+  /// HC writes frequently.
+  Future<double?> _getLatestNumeric(
+    HealthDataType type, {
+    DateTime? start,
+  }) async {
     await _ensureConfigured();
     final now = DateTime.now();
-    final start = DateTime.fromMillisecondsSinceEpoch(0);
+    start ??= DateTime.fromMillisecondsSinceEpoch(0);
     try {
       final points = await _health.getHealthDataFromTypes(
         types: [type],
