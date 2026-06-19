@@ -21,7 +21,6 @@ class DiaryProvider extends ChangeNotifier {
   int _waterMl = 0;
   int _changeToken = 0;
   int _activeCalories = 0;
-  int? _totalCaloriesHc;
   int? _bmrHc;
   List<HcWorkout> _workouts = const [];
 
@@ -33,7 +32,6 @@ class DiaryProvider extends ChangeNotifier {
   bool get isLocked => _isLocked;
   int get waterMl => _waterMl;
   int get activeCalories => _activeCalories;
-  int? get totalCaloriesHc => _totalCaloriesHc;
   int? get bmrHc => _bmrHc;
   List<HcWorkout> get workouts => _workouts;
 
@@ -70,22 +68,18 @@ class DiaryProvider extends ChangeNotifier {
   Future<void> refreshActiveCalories() async {
     final enabled = await UserPreferences.instance.getUseHealthConnect();
     if (!enabled) {
-      if (_activeCalories != 0 ||
-          _totalCaloriesHc != null ||
-          _bmrHc != null ||
-          _workouts.isNotEmpty) {
+      if (_activeCalories != 0 || _bmrHc != null || _workouts.isNotEmpty) {
         _activeCalories = 0;
-        _totalCaloriesHc = null;
         _bmrHc = null;
         _workouts = const [];
         notifyListeners();
       }
       return;
     }
-    // Three independent HC IPC roundtrips — run them in parallel so the
-    // home screen doesn't sit on stale data three times as long as needed.
+    // Independent HC IPC roundtrips — run them in parallel so the home
+    // screen doesn't sit on stale data multiple roundtrips longer than needed.
     final reads = await Future.wait([
-      HealthService.instance.getCaloriesForDay(_selectedDate),
+      HealthService.instance.getActiveCaloriesForDay(_selectedDate),
       HealthService.instance.getWorkoutsForDay(_selectedDate),
       HealthService.instance.getLatestBmrKcal(),
     ]);
@@ -94,13 +88,10 @@ class DiaryProvider extends ChangeNotifier {
     // already run before our results land.
     final stillEnabled = await UserPreferences.instance.getUseHealthConnect();
     if (!stillEnabled) return;
-    final result = reads[0] as ({int? active, int? total});
+    final active = (reads[0] as int?) ?? 0;
     final workouts = reads[1] as List<HcWorkout>;
     final bmr = reads[2] as int?;
-    final active = result.active ?? 0;
-    final total = (result.total ?? 0) > 0 ? result.total : null;
     _activeCalories = active;
-    _totalCaloriesHc = total;
     _bmrHc = bmr;
     _workouts = workouts;
     notifyListeners();
