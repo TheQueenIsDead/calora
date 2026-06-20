@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../providers/diary_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/database_service.dart';
+import '../services/health_service.dart';
 import 'weight_screen.dart';
 
 class TrendsScreen extends StatefulWidget {
@@ -19,6 +20,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
   Map<String, double> _dailyCalories = {};
   Map<String, int> _dailyGoals = {};
   Map<String, Map<String, double>> _dailyMacros = {};
+  Map<String, int> _dailyExpenditure = const {};
   bool _loading = true;
 
   int _lastChangeToken = -1;
@@ -45,17 +47,24 @@ class _TrendsScreenState extends State<TrendsScreen> {
     final seq = ++_loadSeq;
     final to = DateTime.now();
     final from = to.subtract(const Duration(days: _days - 1));
-    final fallback = context.read<SettingsProvider>().currentGoal;
+    final settings = context.read<SettingsProvider>();
+    final fallback = settings.currentGoal;
+    final useHc = settings.useHealthConnect;
     final results = await Future.wait([
       DatabaseService.instance.getDailyCalories(from, to),
       DatabaseService.instance.getDailyGoals(from, to, fallback),
       DatabaseService.instance.getDailyMacros(from, to),
+      if (useHc)
+        HealthService.instance.getTotalCaloriesPerDay(days: _days)
+      else
+        Future<Map<String, int>>.value(const {}),
     ]);
     if (!mounted || seq != _loadSeq) return;
     setState(() {
       _dailyCalories = results[0] as Map<String, double>;
       _dailyGoals = results[1] as Map<String, int>;
       _dailyMacros = results[2] as Map<String, Map<String, double>>;
+      _dailyExpenditure = results[3] as Map<String, int>;
       _loading = false;
     });
   }
@@ -82,9 +91,10 @@ class _TrendsScreenState extends State<TrendsScreen> {
                     dailyMacros: _dailyMacros,
                   ),
                   const SizedBox(height: 16),
-                  _CalorieChart(
+                  _CalorieDeficitSwipe(
                     dailyCalories: _dailyCalories,
                     dailyGoals: _dailyGoals,
+                    dailyExpenditure: _dailyExpenditure,
                     days: _days,
                     tdee: tdee,
                   ),
@@ -95,6 +105,281 @@ class _TrendsScreenState extends State<TrendsScreen> {
                 ],
               ),
             ),
+    );
+  }
+}
+
+// ── Swipeable calorie/deficit pair ───────────────────────────────────────────
+
+class _CalorieDeficitSwipe extends StatefulWidget {
+  final Map<String, double> dailyCalories;
+  final Map<String, int> dailyGoals;
+  final Map<String, int> dailyExpenditure;
+  final int days;
+  final int tdee;
+
+  const _CalorieDeficitSwipe({
+    required this.dailyCalories,
+    required this.dailyGoals,
+    required this.dailyExpenditure,
+    required this.days,
+    required this.tdee,
+  });
+
+  @override
+  State<_CalorieDeficitSwipe> createState() => _CalorieDeficitSwipeState();
+}
+
+class _CalorieDeficitSwipeState extends State<_CalorieDeficitSwipe> {
+  final _controller = PageController();
+  int _page = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasDeficitData = widget.dailyExpenditure.isNotEmpty || widget.tdee > 0;
+    final pages = <Widget>[
+      _CalorieChart(
+        dailyCalories: widget.dailyCalories,
+        dailyGoals: widget.dailyGoals,
+        days: widget.days,
+        tdee: widget.tdee,
+      ),
+      if (hasDeficitData)
+        _DeficitChart(
+          dailyCalories: widget.dailyCalories,
+          dailyExpenditure: widget.dailyExpenditure,
+          days: widget.days,
+          tdee: widget.tdee,
+        ),
+    ];
+    if (pages.length == 1) return pages.first;
+
+    return Column(
+      children: [
+        SizedBox(
+          // Chart cards self-size; let PageView grow to the tallest child.
+          height: 280,
+          child: PageView(
+            controller: _controller,
+            onPageChanged: (i) => setState(() => _page = i),
+            children: pages,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(pages.length, (i) {
+            final active = i == _page;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: active ? 16 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: active
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Deficit chart ────────────────────────────────────────────────────────────
+
+class _DeficitChart extends StatelessWidget {
+  final Map<String, double> dailyCalories;
+  final Map<String, int> dailyExpenditure;
+  final int days;
+  final int tdee;
+
+  const _DeficitChart({
+    required this.dailyCalories,
+    required this.dailyExpenditure,
+    required this.days,
+    required this.tdee,
+  });
+
+  /// Per-day deficit (out - intake). Positive = under-eating that day,
+  /// negative = surplus. Returns null when the day has no intake AND no
+  /// recorded expenditure so we don't render a fake bar for untracked days.
+  int? _deficitFor(DateTime date) {
+    final key = date.toIso8601String().substring(0, 10);
+    final intake = dailyCalories[key] ?? 0;
+    final out = dailyExpenditure[key] ?? (tdee > 0 ? tdee : 0);
+    if (intake <= 0 && out <= 0) return null;
+    return (out - intake).round();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final today = DateTime.now();
+
+    final bars = <BarChartGroupData>[];
+    double maxAbs = 0;
+    for (var i = 0; i < days; i++) {
+      final date = today.subtract(Duration(days: days - 1 - i));
+      final d = _deficitFor(date);
+      if (d == null) {
+        bars.add(BarChartGroupData(x: i, barRods: const []));
+        continue;
+      }
+      final mag = d.abs().toDouble();
+      if (mag > maxAbs) maxAbs = mag;
+      bars.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              fromY: 0,
+              toY: d.toDouble(),
+              color: d >= 0 ? theme.colorScheme.primary : theme.colorScheme.error,
+              width: 8,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (maxAbs == 0) maxAbs = 500;
+    final yBound = ((maxAbs * 1.1) / 250).ceil() * 250.0;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 20, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 8, bottom: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Deficit — last $days days',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                  Container(width: 12, height: 6, color: theme.colorScheme.primary),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Deficit',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(width: 12, height: 6, color: theme.colorScheme.error),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Surplus',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 200,
+              child: BarChart(
+                BarChartData(
+                  minY: -yBound,
+                  maxY: yBound,
+                  barGroups: bars,
+                  gridData: FlGridData(
+                    drawVerticalLine: false,
+                    horizontalInterval: yBound / 2,
+                    getDrawingHorizontalLine: (v) => FlLine(
+                      color: v == 0
+                          ? theme.colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.4)
+                          : theme.colorScheme.primary.withValues(alpha: 0.3),
+                      strokeWidth: v == 0 ? 1 : 1,
+                      dashArray: v == 0 ? null : [4, 4],
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 44,
+                        getTitlesWidget: (v, _) => Text(
+                          v == 0
+                              ? '0'
+                              : (v.abs() >= 1000
+                                  ? '${v >= 0 ? '+' : '−'}${(v.abs() / 1000).toStringAsFixed(1)}k'
+                                  : '${v >= 0 ? '+' : '−'}${v.abs().toInt()}'),
+                          style: theme.textTheme.labelSmall,
+                        ),
+                      ),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (v, _) {
+                          final x = v.toInt();
+                          if (x % 7 != 0) return const SizedBox.shrink();
+                          final date = today.subtract(
+                            Duration(days: days - 1 - x),
+                          );
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              DateFormat('d MMM').format(date),
+                              style: theme.textTheme.labelSmall,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  barTouchData: BarTouchData(
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipItem: (group, _, rod, _) {
+                        final date = today.subtract(
+                          Duration(days: days - 1 - group.x),
+                        );
+                        final d = _deficitFor(date);
+                        if (d == null) return null;
+                        return BarTooltipItem(
+                          '${DateFormat('d MMM').format(date)}\n'
+                          '${d >= 0 ? '+' : '−'}${d.abs()} kcal '
+                          '(${d >= 0 ? 'deficit' : 'surplus'})',
+                          theme.textTheme.labelSmall!.copyWith(
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                duration: Duration.zero,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

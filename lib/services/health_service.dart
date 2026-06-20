@@ -164,6 +164,47 @@ class HealthService {
     }
   }
 
+  /// Batched read: TOTAL_CALORIES_BURNED summed per day across the [days]
+  /// preceding window. Returns a map keyed by `YYYY-MM-DD` so callers can
+  /// look up burn by the same date key already used for diary calories.
+  Future<Map<String, int>> getTotalCaloriesPerDay({int days = 30}) async {
+    await _ensureConfigured();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final start = today.subtract(Duration(days: days - 1));
+    try {
+      final points = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.TOTAL_CALORIES_BURNED],
+        startTime: start,
+        endTime: now,
+      );
+      final sums = <String, double>{};
+      for (final p in points) {
+        final v = p.value;
+        if (v is! NumericHealthValue) continue;
+        // Attribute the record to the day containing its midpoint so
+        // sessions that straddle midnight don't get split or double-counted.
+        final mid = _midpoint(p.dateFrom, p.dateTo);
+        final key = DateTime(mid.year, mid.month, mid.day)
+            .toIso8601String()
+            .substring(0, 10);
+        sums.update(
+          key,
+          (cur) => cur + v.numericValue.toDouble(),
+          ifAbsent: () => v.numericValue.toDouble(),
+        );
+      }
+      debugPrint(
+        '[HealthService] total kcal per day (last $days): '
+        '${sums.length} day(s) with data',
+      );
+      return sums.map((k, v) => MapEntry(k, v.round()));
+    } catch (e, st) {
+      debugPrint('[HealthService] total per day error: $e\n$st');
+      return const {};
+    }
+  }
+
   /// Returns workouts, ambient active calories, and total burn for [date].
   /// Each workout's activeKcal is the sum of ACTIVE_ENERGY_BURNED records
   /// whose midpoint falls inside its time window — i.e. true active burn
