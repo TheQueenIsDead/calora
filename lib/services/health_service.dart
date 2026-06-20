@@ -46,7 +46,31 @@ class HealthService {
 
   Future<bool> requestPermissions() async {
     await _ensureConfigured();
-    return await _health.requestAuthorization(_types, permissions: _access);
+    final granted = await _health.requestAuthorization(
+      _types,
+      permissions: _access,
+    );
+    if (!granted) return false;
+    // HC defaults to "data written since permission grant only" — without
+    // history access we'd be blind to every record that existed in HC
+    // before the user enabled the integration. Request it once after the
+    // main permission set is granted.
+    if (await _health.isHealthDataHistoryAvailable()) {
+      try {
+        await _health.requestHealthDataHistoryAuthorization();
+      } catch (e) {
+        debugPrint('[HealthService] history auth request failed: $e');
+      }
+    }
+    return true;
+  }
+
+  /// True when HC is willing to serve records from before the permission
+  /// grant. Useful to surface a re-grant prompt if the user denied history.
+  Future<bool> hasHistoryAccess() async {
+    await _ensureConfigured();
+    if (!await _health.isHealthDataHistoryAvailable()) return true;
+    return await _health.isHealthDataHistoryAuthorized();
   }
 
 

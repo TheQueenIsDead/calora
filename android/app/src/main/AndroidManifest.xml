@@ -8,6 +8,10 @@
     <!-- The health plugin eagerly reads Distance + Steps for every workout. -->
     <uses-permission android:name="android.permission.health.READ_DISTANCE" />
     <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <!-- Without this, HC silently filters out records written before the
+         user granted Calora permission — which would hide every workout
+         that existed in HC before the user enabled the integration. -->
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
 
     <application
         android:label="@string/app_name"
