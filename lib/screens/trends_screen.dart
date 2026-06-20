@@ -76,6 +76,12 @@ class _TrendsScreenState extends State<TrendsScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  _SummaryStats(
+                    dailyCalories: _dailyCalories,
+                    dailyGoals: _dailyGoals,
+                    dailyMacros: _dailyMacros,
+                  ),
+                  const SizedBox(height: 16),
                   _CalorieChart(
                     dailyCalories: _dailyCalories,
                     dailyGoals: _dailyGoals,
@@ -84,12 +90,6 @@ class _TrendsScreenState extends State<TrendsScreen> {
                   ),
                   const SizedBox(height: 16),
                   _MacroChart(dailyMacros: _dailyMacros, days: _days),
-                  const SizedBox(height: 16),
-                  _SummaryStats(
-                    dailyCalories: _dailyCalories,
-                    dailyGoals: _dailyGoals,
-                    dailyMacros: _dailyMacros,
-                  ),
                   const SizedBox(height: 16),
                   const WeightChartCard(),
                 ],
@@ -574,23 +574,39 @@ class _SummaryStats extends StatelessWidget {
     required this.dailyMacros,
   });
 
+  static int _currentStreak(Map<String, double> dailyCalories) {
+    // Anchor the walk at today only if today has data; otherwise start at
+    // yesterday. Otherwise an in-progress streak resets every morning before
+    // the first meal is logged.
+    var date = DateTime.now();
+    final todayKey = date.toIso8601String().substring(0, 10);
+    if ((dailyCalories[todayKey] ?? 0) <= 0) {
+      date = date.subtract(const Duration(days: 1));
+    }
+    var streak = 0;
+    while (true) {
+      final key = date.toIso8601String().substring(0, 10);
+      if ((dailyCalories[key] ?? 0) <= 0) break;
+      streak++;
+      date = date.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final logged = dailyCalories.entries.where((e) => e.value > 0).toList();
+    final streak = _currentStreak(dailyCalories);
     final avgCal = logged.isEmpty
         ? 0.0
         : logged.map((e) => e.value).reduce((a, b) => a + b) / logged.length;
-
-    int daysUnder = 0;
-    int daysOver = 0;
-    for (final e in logged) {
-      final goal = dailyGoals[e.key] ?? 2000;
-      if (e.value <= goal) {
-        daysUnder++;
-      } else {
-        daysOver++;
-      }
-    }
+    final daysOnGoal = logged.where(
+      (e) => e.value <= (dailyGoals[e.key] ?? 2000),
+    ).length;
+    final pctOnGoal = logged.isEmpty
+        ? 0
+        : (daysOnGoal * 100 / logged.length).round();
 
     double avgProtein = 0, avgFat = 0, avgCarbs = 0;
     if (logged.isNotEmpty) {
@@ -607,61 +623,118 @@ class _SummaryStats extends StatelessWidget {
       avgCarbs /= logged.length;
     }
 
+    final tiles = <_SummaryTile>[
+      _SummaryTile(
+        emoji: '🔥',
+        value: '$streak',
+        label: streak == 1 ? 'day streak' : 'day streak',
+        tint: Colors.deepOrange,
+      ),
+      _SummaryTile(
+        emoji: '🍽️',
+        value: avgCal.toStringAsFixed(0),
+        label: 'avg kcal',
+        tint: theme.colorScheme.primary,
+      ),
+      _SummaryTile(
+        emoji: '🎯',
+        value: '$pctOnGoal%',
+        label: 'on goal',
+        tint: Colors.green,
+      ),
+      _SummaryTile(
+        emoji: '🥩',
+        value: '${avgProtein.toStringAsFixed(0)}g',
+        label: 'avg protein',
+        tint: Colors.redAccent,
+      ),
+      _SummaryTile(
+        emoji: '🥑',
+        value: '${avgFat.toStringAsFixed(0)}g',
+        label: 'avg fat',
+        tint: Colors.amber,
+      ),
+      _SummaryTile(
+        emoji: '🍞',
+        value: '${avgCarbs.toStringAsFixed(0)}g',
+        label: 'avg carbs',
+        tint: Colors.blue,
+      ),
+      _SummaryTile(
+        emoji: '📔',
+        value: '${logged.length}',
+        label: 'days logged',
+        tint: theme.colorScheme.tertiary,
+      ),
+    ];
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Summary', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
-            _StatRow(label: 'Days logged', value: '${logged.length}'),
-            _StatRow(
-              label: 'Average calories',
-              value: '${avgCal.toStringAsFixed(0)} kcal',
-            ),
-            _StatRow(label: 'Days at or under goal', value: '$daysUnder'),
-            _StatRow(label: 'Days over goal', value: '$daysOver'),
-            if (logged.isNotEmpty) ...[
-              const Divider(height: 24),
-              _StatRow(
-                label: 'Avg protein',
-                value: '${avgProtein.toStringAsFixed(0)} g',
-              ),
-              _StatRow(
-                label: 'Avg fat',
-                value: '${avgFat.toStringAsFixed(0)} g',
-              ),
-              _StatRow(
-                label: 'Avg carbs',
-                value: '${avgCarbs.toStringAsFixed(0)} g',
-              ),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              for (var i = 0; i < tiles.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                tiles[i],
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _StatRow extends StatelessWidget {
-  final String label;
+class _SummaryTile extends StatelessWidget {
+  final String emoji;
   final String value;
-  const _StatRow({required this.label, required this.value});
+  final String label;
+  final Color tint;
+
+  const _SummaryTile({
+    required this.emoji,
+    required this.value,
+    required this.label,
+    required this.tint,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: 78,
+      child: Column(
         children: [
-          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(emoji, style: const TextStyle(fontSize: 24)),
+          ),
+          const SizedBox(height: 6),
           Text(
             value,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

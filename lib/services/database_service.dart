@@ -9,7 +9,6 @@ import 'package:path/path.dart';
 import 'package:uuid/uuid.dart';
 import '../models/food_item.dart';
 import '../models/diary_entry.dart';
-import '../models/weight_entry.dart';
 
 class DatabaseService {
   static DatabaseService? _instance;
@@ -105,7 +104,7 @@ class DatabaseService {
 
   // ── User DB (never wiped, holds diary + recipes + food cache) ─────────────
 
-  static const _kUserVersion = 6;
+  static const _kUserVersion = 7;
 
   Future<Database> _openUserDb() async {
     final dir = await getDatabasesPath();
@@ -121,14 +120,13 @@ class DatabaseService {
             'ALTER TABLE recipes ADD COLUMN servings INTEGER NOT NULL DEFAULT 1',
           );
         }
-        if (oldV < 4) await _createWeightLogTable(db);
         if (oldV < 5) await _createLastUsedGramsTable(db);
         if (oldV < 6) await _migrateWaterToDb(db);
+        if (oldV < 7) await db.execute('DROP TABLE IF EXISTS weight_log');
       },
     );
     await _createGoalHistoryTable(db);
     await _ensureRecipesServingsColumn(db);
-    await _createWeightLogTable(db);
     await _createLastUsedGramsTable(db);
     await _createWaterLogTable(db);
     return db;
@@ -148,16 +146,6 @@ class DatabaseService {
       CREATE TABLE IF NOT EXISTS goal_history (
         date     TEXT PRIMARY KEY,
         calories INTEGER NOT NULL
-      )
-    ''');
-  }
-
-  Future<void> _createWeightLogTable(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS weight_log (
-        id   TEXT PRIMARY KEY,
-        date TEXT UNIQUE NOT NULL,
-        kg   REAL NOT NULL
       )
     ''');
   }
@@ -326,7 +314,6 @@ class DatabaseService {
     await db.execute('CREATE INDEX idx_diary_date    ON diary_entries (date)');
     await db.execute('CREATE INDEX idx_foods_barcode ON foods (barcode)');
     await _createGoalHistoryTable(db);
-    await _createWeightLogTable(db);
     await _createLastUsedGramsTable(db);
     await _createWaterLogTable(db);
   }
@@ -698,67 +685,6 @@ class DatabaseService {
       result[dateStr] = goal;
     }
     return result;
-  }
-
-  // ── Weight log ────────────────────────────────────────────────────────────
-
-  Future<void> saveWeight(DateTime date, double kg) async {
-    try {
-      final dateStr = date.toIso8601String().substring(0, 10);
-      final db = await userDb;
-      await db.insert('weight_log', {
-        'id': const Uuid().v4(),
-        'date': dateStr,
-        'kg': kg,
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
-    } catch (e) {
-      debugPrint('saveWeight error: $e');
-      rethrow;
-    }
-  }
-
-  Future<List<WeightEntry>> getWeightHistory({int days = 90}) async {
-    try {
-      final db = await userDb;
-      final cutoff = DateTime.now()
-          .subtract(Duration(days: days))
-          .toIso8601String()
-          .substring(0, 10);
-      final rows = await db.rawQuery(
-        'SELECT * FROM weight_log WHERE date >= ? ORDER BY date ASC',
-        [cutoff],
-      );
-      return rows.map(WeightEntry.fromMap).toList();
-    } catch (e) {
-      debugPrint('getWeightHistory error: $e');
-      return [];
-    }
-  }
-
-  Future<WeightEntry?> getLatestWeight() async {
-    try {
-      final db = await userDb;
-      final rows = await db.rawQuery(
-        'SELECT * FROM weight_log ORDER BY date DESC LIMIT 1',
-      );
-      return rows.isEmpty ? null : WeightEntry.fromMap(rows.first);
-    } catch (e) {
-      debugPrint('getLatestWeight error: $e');
-      return null;
-    }
-  }
-
-  Future<void> deleteWeight(String id) async {
-    try {
-      await (await userDb).delete(
-        'weight_log',
-        where: 'id = ?',
-        whereArgs: [id],
-      );
-    } catch (e) {
-      debugPrint('deleteWeight error: $e');
-      rethrow;
-    }
   }
 
   // ── Recipes (as virtual FoodItems) ────────────────────────────────────────
@@ -1164,7 +1090,6 @@ class DatabaseService {
       'recipes': await d.query('recipes'),
       'recipe_items': await d.query('recipe_items'),
       'goal_history': await d.query('goal_history'),
-      'weight_log': await d.query('weight_log'),
       'water_log': await d.query('water_log'),
       'last_used_grams': await d.query('last_used_grams'),
     };
@@ -1181,7 +1106,6 @@ class DatabaseService {
         'recipes',
         'foods',
         'goal_history',
-        'weight_log',
         'water_log',
       ]) {
         await txn.delete(t);
@@ -1193,7 +1117,6 @@ class DatabaseService {
         'recipe_items',
         'diary_entries',
         'goal_history',
-        'weight_log',
         'water_log',
         'last_used_grams',
       ]) {

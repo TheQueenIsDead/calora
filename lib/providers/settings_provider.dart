@@ -14,6 +14,7 @@ class SettingsProvider extends ChangeNotifier {
   List<WaterVessel> _vessels = [];
   int _bmr = 0;
   int _tdee = 0;
+  bool _useHealthConnect = false;
   List<Map<String, dynamic>> _recipes = [];
 
   int get currentGoal => _currentGoal;
@@ -21,6 +22,7 @@ class SettingsProvider extends ChangeNotifier {
   List<WaterVessel> get vessels => _vessels;
   int get bmr => _bmr;
   int get tdee => _tdee;
+  bool get useHealthConnect => _useHealthConnect;
   List<Map<String, dynamic>> get recipes => _recipes;
 
   Future<void> init() async {
@@ -30,6 +32,7 @@ class SettingsProvider extends ChangeNotifier {
     _vessels = await prefs.getVessels();
     _bmr = await prefs.getBmr();
     _tdee = await prefs.getTdee();
+    _useHealthConnect = await prefs.getUseHealthConnect();
     _recipes = await DatabaseService.instance.getRecipes();
     notifyListeners();
   }
@@ -64,6 +67,12 @@ class SettingsProvider extends ChangeNotifier {
     _tdee = tdee;
     notifyListeners();
     await UserPreferences.instance.setTdee(tdee);
+  }
+
+  Future<void> setUseHealthConnect(bool enabled) async {
+    _useHealthConnect = enabled;
+    notifyListeners();
+    await UserPreferences.instance.setUseHealthConnect(enabled);
   }
 
   Future<void> loadRecipes() async {

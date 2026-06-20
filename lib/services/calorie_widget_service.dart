@@ -10,7 +10,10 @@ class CalorieWidgetService {
   CalorieWidgetService._();
   static final instance = CalorieWidgetService._();
 
-  static const _androidWidget = 'CalorieWidgetProvider';
+  // Fully qualified so home_widget resolves the class in the namespace package,
+  // not the (potentially `.debug`-suffixed) applicationId. Passed via
+  // `qualifiedAndroidName`, which skips the packageName prefix.
+  static const _androidWidget = 'nz.calora.calora.CalorieWidgetProvider';
 
   Future<void> initialize(
     DiaryProvider diary,
@@ -49,7 +52,7 @@ class CalorieWidgetService {
       );
     } catch (_) {}
 
-    await HomeWidget.updateWidget(androidName: _androidWidget);
+    await HomeWidget.updateWidget(qualifiedAndroidName: _androidWidget);
   }
 }
 

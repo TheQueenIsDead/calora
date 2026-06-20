@@ -16,7 +16,10 @@ class WaterWidgetService {
   WaterWidgetService._();
   static final instance = WaterWidgetService._();
 
-  static const _androidWidget = 'WaterWidgetProvider';
+  // Fully qualified so home_widget resolves the class in the namespace package,
+  // not the (potentially `.debug`-suffixed) applicationId. Passed via
+  // `qualifiedAndroidName`, which skips the packageName prefix.
+  static const _androidWidget = 'nz.calora.calora.WaterWidgetProvider';
 
   /// Read the widget's cached water for TODAY, or null if stale (previous day).
   /// Call this as the very first thing in main() so diary.init() can't
@@ -76,7 +79,7 @@ class WaterWidgetService {
       await HomeWidget.saveWidgetData<int>('vessel_${i}_ml', vessels[i].ml);
       await _renderVesselIcon(vessels[i], i);
     }
-    await HomeWidget.updateWidget(androidName: _androidWidget);
+    await HomeWidget.updateWidget(qualifiedAndroidName: _androidWidget);
   }
 
   /// Renders the vessel icon to a PNG file the widget can load as a Bitmap.
