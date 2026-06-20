@@ -21,28 +21,17 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-int _workoutSum(DiaryProvider diary) =>
-    diary.workouts.fold<int>(0, (s, w) => s + (w.kcal ?? 0));
-
-/// Active movement not accounted for by an explicit workout. We can't dedupe
-/// per-record without time matching, so approximate as max(0, active - workouts).
-int _ambientActiveKcal(DiaryProvider diary) {
-  final delta = diary.activeCalories - _workoutSum(diary);
-  return delta > 0 ? delta : 0;
-}
-
 int _computeExpenditure(DiaryProvider diary, SettingsProvider settings) {
   if (!settings.useHealthConnect) return settings.tdee;
-  final workouts = _workoutSum(diary);
-  final active = diary.activeCalories;
-  final aboveBasal = workouts > active ? workouts : active;
-  // Prefer HC's BMR, then the user's calculated BMR. If both are zero we
-  // fall back to the stored TDEE but still add HC activity on top so the
-  // Activities card and the Out figure agree. This can slightly double-count
-  // the activity multiplier baked into TDEE; setting a BMR removes that.
+  // diary.activeCalories is the day's total ACTIVE_ENERGY_BURNED from HC —
+  // by definition basal-excluded — so it composes cleanly with BMR. Workouts
+  // contribute through that total (their activeKcal is attributed from the
+  // same record stream), so we never double-count.
   final bmr = diary.bmrHc ?? settings.bmr;
-  if (bmr > 0) return bmr + aboveBasal;
-  return settings.tdee + aboveBasal;
+  if (bmr > 0) return bmr + diary.activeCalories;
+  // No BMR set anywhere — fall back to stored TDEE and still credit HC
+  // activity so the Activities card and Out figure stay in sync.
+  return settings.tdee + diary.activeCalories;
 }
 
 
@@ -130,11 +119,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         if (settings.useHealthConnect &&
                             (diary.workouts.isNotEmpty ||
-                                _ambientActiveKcal(diary) > 0)) ...[
+                                diary.ambientActiveKcal > 0)) ...[
                           const SizedBox(height: 12),
                           _ActivitiesCard(
                             workouts: diary.workouts,
-                            ambientActiveKcal: _ambientActiveKcal(diary),
+                            ambientActiveKcal: diary.ambientActiveKcal,
                           ),
                         ],
                         const SizedBox(height: 20),
@@ -376,7 +365,7 @@ class _ActivitiesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final workoutSum = workouts.fold<int>(0, (s, w) => s + (w.kcal ?? 0));
+    final workoutSum = workouts.fold<int>(0, (s, w) => s + w.activeKcal);
     final totalKcal = workoutSum + ambientActiveKcal;
     return Card(
       elevation: 0,
@@ -464,12 +453,18 @@ class _ActivityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final kcal = workout.kcal;
     final timeStr = DateFormat.jm().format(workout.start);
     final mins = workout.duration.inMinutes;
     final durStr = mins >= 60
         ? '${mins ~/ 60}h ${mins % 60}m'
         : '${mins}m';
+    // Show HC's session total in parentheses when the source wrote one but
+    // no matching ACTIVE_ENERGY_BURNED records to back it up. Active-derived
+    // numbers are basal-excluded, so this only triggers for rare sources
+    // that publish workouts without paired active data.
+    final active = workout.activeKcal;
+    final session = workout.totalKcal;
+    final showFallback = active == 0 && session != null && session > 0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -498,13 +493,13 @@ class _ActivityRow extends StatelessWidget {
               ],
             ),
           ),
-          if (kcal != null)
-            Text(
-              '$kcal kcal',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+          Text(
+            showFallback ? '~$session kcal' : '$active kcal',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: showFallback ? theme.colorScheme.onSurfaceVariant : null,
             ),
+          ),
         ],
       ),
     );

@@ -8,7 +8,7 @@ import '../services/user_preferences.dart';
 
 // HcWorkout is re-exported through this provider so screens don't need to
 // import HealthService directly.
-export '../services/health_service.dart' show HcWorkout;
+export '../services/health_service.dart' show HcWorkout, HcDailyActivity;
 
 class DiaryProvider extends ChangeNotifier {
   List<DiaryEntry> _entries = [];
@@ -21,6 +21,7 @@ class DiaryProvider extends ChangeNotifier {
   int _waterMl = 0;
   int _changeToken = 0;
   int _activeCalories = 0;
+  int _ambientActiveKcal = 0;
   int? _bmrHc;
   List<HcWorkout> _workouts = const [];
 
@@ -31,7 +32,11 @@ class DiaryProvider extends ChangeNotifier {
   bool get loading => _loading;
   bool get isLocked => _isLocked;
   int get waterMl => _waterMl;
+  /// Total ACTIVE_ENERGY_BURNED for the day = sum(workouts.activeKcal) + ambient.
   int get activeCalories => _activeCalories;
+
+  /// Active calories not attributed to any workout window.
+  int get ambientActiveKcal => _ambientActiveKcal;
   int? get bmrHc => _bmrHc;
   List<HcWorkout> get workouts => _workouts;
 
@@ -68,19 +73,22 @@ class DiaryProvider extends ChangeNotifier {
   Future<void> refreshActiveCalories() async {
     final enabled = await UserPreferences.instance.getUseHealthConnect();
     if (!enabled) {
-      if (_activeCalories != 0 || _bmrHc != null || _workouts.isNotEmpty) {
+      if (_activeCalories != 0 ||
+          _ambientActiveKcal != 0 ||
+          _bmrHc != null ||
+          _workouts.isNotEmpty) {
         _activeCalories = 0;
+        _ambientActiveKcal = 0;
         _bmrHc = null;
         _workouts = const [];
         notifyListeners();
       }
       return;
     }
-    // Independent HC IPC roundtrips — run them in parallel so the home
-    // screen doesn't sit on stale data multiple roundtrips longer than needed.
+    // Two HC IPC roundtrips in parallel: per-day activity (workouts +
+    // attributed active records + ambient) and the most-recent BMR rate.
     final reads = await Future.wait([
-      HealthService.instance.getActiveCaloriesForDay(_selectedDate),
-      HealthService.instance.getWorkoutsForDay(_selectedDate),
+      HealthService.instance.getActivityForDay(_selectedDate),
       HealthService.instance.getLatestBmrKcal(),
     ]);
     // Re-check the toggle after the awaits — the user can disable HC while
@@ -88,12 +96,12 @@ class DiaryProvider extends ChangeNotifier {
     // already run before our results land.
     final stillEnabled = await UserPreferences.instance.getUseHealthConnect();
     if (!stillEnabled) return;
-    final active = (reads[0] as int?) ?? 0;
-    final workouts = reads[1] as List<HcWorkout>;
-    final bmr = reads[2] as int?;
-    _activeCalories = active;
+    final activity = reads[0] as HcDailyActivity;
+    final bmr = reads[1] as int?;
+    _activeCalories = activity.totalActiveKcal;
+    _ambientActiveKcal = activity.ambientKcal;
+    _workouts = activity.workouts;
     _bmrHc = bmr;
-    _workouts = workouts;
     notifyListeners();
   }
 
