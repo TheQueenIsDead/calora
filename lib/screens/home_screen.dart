@@ -298,57 +298,60 @@ class _SummaryCard extends StatelessWidget {
       color: theme.colorScheme.primaryContainer,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        child: Column(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Row(
-              children: [
-                CalorieRing(
-                  progress: diary.progress,
-                  size: 72,
-                  color: isOverTdee
-                      ? theme.colorScheme.error
-                      : isOverGoal
-                      ? Colors.amber
-                      : null,
-                  centerChild: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        remaining.abs().toStringAsFixed(0),
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: ringValueColor,
-                          height: 1.1,
-                        ),
-                      ),
-                      Text(
-                        ringTagline,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: mutedColor,
-                          height: 1.1,
-                        ),
-                      ),
-                    ],
+            CalorieRing(
+              progress: diary.progress,
+              size: 72,
+              color: isOverTdee
+                  ? theme.colorScheme.error
+                  : isOverGoal
+                  ? Colors.amber
+                  : null,
+              centerChild: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    remaining.abs().toStringAsFixed(0),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: ringValueColor,
+                      height: 1.1,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _EnergyBalanceLine(
+                  Text(
+                    ringTagline,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: mutedColor,
+                      height: 1.1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _EnergyBalanceLine(
                     intake: intake,
                     expenditure: expenditure,
                     deficit: deficit,
                     mutedColor: mutedColor,
                     valueColor: theme.colorScheme.onPrimaryContainer,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _MacroBar(
-              carbs: diary.totalCarbs,
-              protein: diary.totalProtein,
-              fat: diary.totalFat,
+                  const SizedBox(height: 8),
+                  _MacroBar(
+                    carbs: diary.totalCarbs,
+                    protein: diary.totalProtein,
+                    fat: diary.totalFat,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
