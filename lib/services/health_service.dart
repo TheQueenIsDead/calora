@@ -49,42 +49,6 @@ class HealthService {
     return await _health.requestAuthorization(_types, permissions: _access);
   }
 
-  /// Sum of ACTIVE_ENERGY_BURNED records for [date] in kcal, or null on error.
-  /// We don't sum TOTAL_CALORIES_BURNED — that stream is system-estimator-only
-  /// on most devices and misses manually-logged workouts, so the expenditure
-  /// model builds on BMR + active/workouts rather than trusting Total.
-  Future<int?> getActiveCaloriesForDay(DateTime date) async {
-    await _ensureConfigured();
-    final start = DateTime(date.year, date.month, date.day);
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final end = start.isAtSameMomentAs(today)
-        ? now
-        : start.add(const Duration(days: 1));
-    final dateStr = start.toIso8601String().substring(0, 10);
-    try {
-      final points = await _health.getHealthDataFromTypes(
-        types: [HealthDataType.ACTIVE_ENERGY_BURNED],
-        startTime: start,
-        endTime: end,
-      );
-      var total = 0.0;
-      for (final p in points) {
-        final v = p.value;
-        if (v is NumericHealthValue) {
-          total += v.numericValue.toDouble();
-        }
-      }
-      debugPrint(
-        '[HealthService] ACTIVE_ENERGY_BURNED $dateStr: '
-        '${points.length} point(s), total ${total.round()} kcal',
-      );
-      return total.round();
-    } catch (e, st) {
-      debugPrint('[HealthService] active calories error: $e\n$st');
-      return null;
-    }
-  }
 
   Future<double?> getLatestWeightKg() =>
       _getLatestNumeric(HealthDataType.WEIGHT);
@@ -173,50 +137,108 @@ class HealthService {
     }
   }
 
-  Future<List<HcWorkout>> getWorkoutsForDay(DateTime date) async {
+  /// Returns workouts and ambient active calories for [date]. Each workout's
+  /// activeKcal is the sum of ACTIVE_ENERGY_BURNED records whose midpoint
+  /// falls inside its time window — i.e. true active burn from HC, with no
+  /// basal double-count. Ambient is the remainder of the day's active not
+  /// claimed by any workout. totalActiveKcal is the day's full active sum.
+  Future<HcDailyActivity> getActivityForDay(DateTime date) async {
     await _ensureConfigured();
     final start = DateTime(date.year, date.month, date.day);
     final dayEnd = start.add(const Duration(days: 1));
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final queryEnd = start.isAtSameMomentAs(today) ? now : dayEnd;
+    final dateStr = start.toIso8601String().substring(0, 10);
     try {
-      final points = await _health.getHealthDataFromTypes(
-        types: [HealthDataType.WORKOUT],
-        startTime: start,
-        endTime: queryEnd,
-      );
-      final workouts = <HcWorkout>[];
-      for (final p in points) {
+      // Two HC reads in parallel — workouts and active calorie records for
+      // the day. We attribute each active record to its enclosing workout
+      // (by midpoint) or fall back to ambient.
+      final reads = await Future.wait([
+        _health.getHealthDataFromTypes(
+          types: [HealthDataType.WORKOUT],
+          startTime: start,
+          endTime: queryEnd,
+        ),
+        _health.getHealthDataFromTypes(
+          types: [HealthDataType.ACTIVE_ENERGY_BURNED],
+          startTime: start,
+          endTime: queryEnd,
+        ),
+      ]);
+      final workoutPoints = reads[0];
+      final activePoints = reads[1];
+
+      // Build the workouts list, filtered to those whose midpoint lands
+      // in this day so midnight-crossing sessions count once.
+      final workouts = <_MutableWorkout>[];
+      for (final p in workoutPoints) {
         final v = p.value;
         if (v is! WorkoutHealthValue) continue;
-        // HC returns any session that overlaps [start, queryEnd], so a
-        // workout crossing midnight would surface in two consecutive days.
-        // Assign it to the day containing its midpoint instead.
-        final midpoint = p.dateFrom.add(
-          Duration(milliseconds: p.dateTo.difference(p.dateFrom).inMilliseconds ~/ 2),
-        );
-        if (midpoint.isBefore(start) || !midpoint.isBefore(dayEnd)) continue;
+        final mid = _midpoint(p.dateFrom, p.dateTo);
+        if (mid.isBefore(start) || !mid.isBefore(dayEnd)) continue;
         workouts.add(
-          HcWorkout(
+          _MutableWorkout(
             activityType: v.workoutActivityType,
-            kcal: v.totalEnergyBurned,
+            totalKcal: v.totalEnergyBurned,
             start: p.dateFrom,
             end: p.dateTo,
           ),
         );
       }
       workouts.sort((a, b) => a.start.compareTo(b.start));
+
+      // Attribute each active record. Midpoint-in-window keeps a single
+      // record from being split across two buckets.
+      var ambient = 0.0;
+      var totalActive = 0.0;
+      for (final p in activePoints) {
+        final v = p.value;
+        if (v is! NumericHealthValue) continue;
+        final kcal = v.numericValue.toDouble();
+        totalActive += kcal;
+        final mid = _midpoint(p.dateFrom, p.dateTo);
+        final w = workouts.firstWhereOrNull(
+          (w) => !mid.isBefore(w.start) && mid.isBefore(w.end),
+        );
+        if (w != null) {
+          w.activeKcal += kcal;
+        } else {
+          ambient += kcal;
+        }
+      }
+
       debugPrint(
-        '[HealthService] workouts ${start.toIso8601String().substring(0, 10)}: '
-        '${workouts.length} workout(s)',
+        '[HealthService] activity $dateStr: ${workouts.length} workout(s), '
+        '${totalActive.round()} kcal active total '
+        '(${ambient.round()} ambient)',
       );
-      return workouts;
+
+      return HcDailyActivity(
+        workouts: workouts
+            .map((w) => HcWorkout(
+                  activityType: w.activityType,
+                  activeKcal: w.activeKcal.round(),
+                  totalKcal: w.totalKcal,
+                  start: w.start,
+                  end: w.end,
+                ))
+            .toList(growable: false),
+        ambientKcal: ambient.round(),
+        totalActiveKcal: totalActive.round(),
+      );
     } catch (e, st) {
-      debugPrint('[HealthService] workouts error: $e\n$st');
-      return const [];
+      debugPrint('[HealthService] activity error: $e\n$st');
+      return const HcDailyActivity(
+        workouts: [],
+        ambientKcal: 0,
+        totalActiveKcal: 0,
+      );
     }
   }
+
+  static DateTime _midpoint(DateTime a, DateTime b) =>
+      a.add(Duration(milliseconds: b.difference(a).inMilliseconds ~/ 2));
 
   /// Opens Health Connect's permission management screen for this app, so
   /// users can grant types we can't re-prompt for (HC's two-strike policy).
@@ -242,16 +264,63 @@ class HcWeightPoint {
 
 class HcWorkout {
   final HealthWorkoutActivityType activityType;
-  final int? kcal;
+
+  /// Sum of ACTIVE_ENERGY_BURNED records whose midpoint fell inside this
+  /// workout's window. Excludes basal — safe to add on top of BMR.
+  final int activeKcal;
+
+  /// HC's own ExerciseSession.totalEnergyBurned (basal + active for the
+  /// workout window). Surfaced only as a display fallback when no
+  /// matching ACTIVE_ENERGY_BURNED records were written by the source.
+  final int? totalKcal;
+
   final DateTime start;
   final DateTime end;
 
   const HcWorkout({
     required this.activityType,
-    required this.kcal,
+    required this.activeKcal,
+    required this.totalKcal,
     required this.start,
     required this.end,
   });
 
   Duration get duration => end.difference(start);
+}
+
+class HcDailyActivity {
+  final List<HcWorkout> workouts;
+  final int ambientKcal;
+  final int totalActiveKcal;
+
+  const HcDailyActivity({
+    required this.workouts,
+    required this.ambientKcal,
+    required this.totalActiveKcal,
+  });
+}
+
+/// Internal accumulator while attributing active records to workouts.
+class _MutableWorkout {
+  final HealthWorkoutActivityType activityType;
+  final int? totalKcal;
+  final DateTime start;
+  final DateTime end;
+  double activeKcal = 0;
+
+  _MutableWorkout({
+    required this.activityType,
+    required this.totalKcal,
+    required this.start,
+    required this.end,
+  });
+}
+
+extension<E> on Iterable<E> {
+  E? firstWhereOrNull(bool Function(E) test) {
+    for (final e in this) {
+      if (test(e)) return e;
+    }
+    return null;
+  }
 }
