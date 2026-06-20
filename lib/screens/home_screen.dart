@@ -22,29 +22,12 @@ class HomeScreen extends StatefulWidget {
 }
 
 int _computeExpenditure(DiaryProvider diary, SettingsProvider settings) {
+  // Two clean branches: when Health Connect is on, Out is whatever HC says
+  // it is (TOTAL_CALORIES_BURNED summed over the day, basal + active). When
+  // it's off, Out is the user's static TDEE from the BMR calculator. No
+  // hybrid estimation — keeps the number trustable and the model simple.
   if (!settings.useHealthConnect) return settings.tdee;
-  // Prefer HC's TOTAL_CALORIES_BURNED sum when the user's source publishes
-  // it — that stream is already basal + active over the day window, with
-  // HC's own time-of-day handling. The Activities card is purely
-  // informational in this branch.
-  final total = diary.totalBurnHc;
-  if (total != null && total > 0) return total;
-
-  // Fallback for sources that don't write TOTAL: scale BMR by the elapsed
-  // fraction of today (or full 24h for past days) and add measured active.
-  final bmr = diary.bmrHc ?? settings.bmr;
-  if (bmr <= 0) return settings.tdee + diary.activeCalories;
-  final now = DateTime.now();
-  final selected = diary.selectedDate;
-  final isToday = selected.year == now.year &&
-      selected.month == now.month &&
-      selected.day == now.day;
-  final basal = isToday
-      ? (bmr * now.difference(DateTime(now.year, now.month, now.day)).inSeconds /
-              86400)
-          .round()
-      : bmr;
-  return basal + diary.activeCalories;
+  return diary.totalBurnHc ?? settings.tdee;
 }
 
 

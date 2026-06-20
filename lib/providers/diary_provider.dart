@@ -105,36 +105,9 @@ class DiaryProvider extends ChangeNotifier {
     if (!stillEnabled) return;
     final activity = reads[0] as HcDailyActivity;
     final bmr = reads[1] as int?;
-    // For workouts whose source wrote a session total but no paired
-    // ACTIVE_ENERGY_BURNED records, derive an active contribution as
-    // total - basal-during-workout. Otherwise these workouts would be
-    // visibly logged on the activity card but contribute zero to Out.
-    final basalRate = bmr ?? 0;
-    final basalPerSec = basalRate / 86400.0;
-    final adjusted = <HcWorkout>[];
-    var derivedActiveSum = 0;
-    for (final w in activity.workouts) {
-      final total = w.totalKcal;
-      if (w.activeKcal > 0 || total == null || total <= 0 || basalRate <= 0) {
-        adjusted.add(w);
-        continue;
-      }
-      final basalShare = (basalPerSec * w.duration.inSeconds).round();
-      final est = total - basalShare;
-      final clamped = est > 0 ? est : 0;
-      adjusted.add(HcWorkout(
-        activityType: w.activityType,
-        activeKcal: clamped,
-        totalKcal: w.totalKcal,
-        start: w.start,
-        end: w.end,
-        activeIsEstimated: true,
-      ));
-      derivedActiveSum += clamped;
-    }
-    _activeCalories = activity.totalActiveKcal + derivedActiveSum;
+    _activeCalories = activity.totalActiveKcal;
     _ambientActiveKcal = activity.ambientKcal;
-    _workouts = adjusted;
+    _workouts = activity.workouts;
     _bmrHc = bmr;
     _totalBurnHc = activity.totalBurnKcal;
     notifyListeners();
