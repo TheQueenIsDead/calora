@@ -277,15 +277,18 @@ class _SummaryCard extends StatelessWidget {
     final isOverTdee = expenditure > 0 && diary.totalCalories > expenditure;
     final intake = diary.totalCalories;
     final deficit = expenditure > 0 ? expenditure - intake : null;
-    final expenditureSet = expenditure > 0;
 
-    final Color goalStateColor;
+    final Color ringValueColor;
+    final String ringTagline;
     if (isOverTdee) {
-      goalStateColor = theme.colorScheme.error;
+      ringValueColor = theme.colorScheme.error;
+      ringTagline = 'over TDEE';
     } else if (isOverGoal) {
-      goalStateColor = Colors.amber;
+      ringValueColor = Colors.amber.shade800;
+      ringTagline = 'over goal';
     } else {
-      goalStateColor = theme.colorScheme.onPrimaryContainer;
+      ringValueColor = theme.colorScheme.onPrimaryContainer;
+      ringTagline = 'left';
     }
     final mutedColor = theme.colorScheme.onPrimaryContainer
         .withValues(alpha: 0.7);
@@ -294,58 +297,57 @@ class _SummaryCard extends StatelessWidget {
       elevation: 0,
       color: theme.colorScheme.primaryContainer,
       child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Column(
           children: [
-            CalorieRing(
-              progress: diary.progress,
-              size: 72,
-              color: isOverTdee
-                  ? theme.colorScheme.error
-                  : isOverGoal
-                  ? Colors.amber
-                  : null,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            Row(
+              children: [
+                CalorieRing(
+                  progress: diary.progress,
+                  size: 104,
+                  color: isOverTdee
+                      ? theme.colorScheme.error
+                      : isOverGoal
+                      ? Colors.amber
+                      : null,
+                  centerChild: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: _StatBlock(
-                          label: isOverTdee
-                              ? 'Over TDEE'
-                              : isOverGoal
-                              ? 'Over goal'
-                              : 'Remaining',
-                          value: '${remaining.abs().toStringAsFixed(0)} kcal',
-                          valueColor: goalStateColor,
-                          labelColor: mutedColor,
+                      Text(
+                        remaining.abs().toStringAsFixed(0),
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: ringValueColor,
+                          height: 1.0,
                         ),
                       ),
-                      Expanded(
-                        child: _InOutDeficit(
-                          intake: intake,
-                          expenditure: expenditure,
-                          deficit: deficit,
-                          expenditureSet: expenditureSet,
-                          mutedColor: mutedColor,
-                          valueColor: theme.colorScheme.onPrimaryContainer,
+                      const SizedBox(height: 2),
+                      Text(
+                        ringTagline,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: mutedColor,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  _MacroBar(
-                    carbs: diary.totalCarbs,
-                    protein: diary.totalProtein,
-                    fat: diary.totalFat,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _EnergyBalanceLine(
+                    intake: intake,
+                    expenditure: expenditure,
+                    deficit: deficit,
+                    mutedColor: mutedColor,
+                    valueColor: theme.colorScheme.onPrimaryContainer,
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _MacroBar(
+              carbs: diary.totalCarbs,
+              protein: diary.totalProtein,
+              fat: diary.totalFat,
             ),
           ],
         ),
@@ -881,19 +883,17 @@ class _WeekStripState extends State<_WeekStrip> {
   }
 }
 
-class _InOutDeficit extends StatelessWidget {
+class _EnergyBalanceLine extends StatelessWidget {
   final double intake;
   final int expenditure;
   final double? deficit;
-  final bool expenditureSet;
   final Color mutedColor;
   final Color valueColor;
 
-  const _InOutDeficit({
+  const _EnergyBalanceLine({
     required this.intake,
     required this.expenditure,
     required this.deficit,
-    required this.expenditureSet,
     required this.mutedColor,
     required this.valueColor,
   });
@@ -901,84 +901,40 @@ class _InOutDeficit extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final labelStyle = theme.textTheme.labelSmall?.copyWith(color: mutedColor);
-    final valueStyle = theme.textTheme.bodyMedium?.copyWith(color: valueColor);
-
+    final expenditureSet = expenditure > 0;
     final inSurplus = (deficit ?? 0) < 0;
-    final deficitLabel = !expenditureSet
-        ? 'Deficit'
-        : inSurplus
-        ? 'Surplus'
-        : 'Deficit';
-    final deficitText = expenditureSet
-        ? deficit!.abs().toStringAsFixed(0)
-        : '—';
     final deficitColor = !expenditureSet
         ? mutedColor
         : inSurplus
         ? theme.colorScheme.error
-        : Colors.lightGreen.shade300;
+        : Colors.lightGreen.shade700;
 
-    Widget row(String label, String value, TextStyle? style) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
-      child: Row(
-        children: [
-          Expanded(child: Text(label, style: labelStyle)),
-          Text(value, style: style),
-        ],
-      ),
+    final labelStyle = theme.textTheme.labelSmall?.copyWith(color: mutedColor);
+    final valueStyle = theme.textTheme.titleSmall?.copyWith(
+      color: valueColor,
+      fontWeight: FontWeight.w700,
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        row('In', intake.toStringAsFixed(0), valueStyle),
-        row(
-          'Out',
-          expenditureSet ? expenditure.toString() : '—',
-          valueStyle,
-        ),
-        row(
-          deficitLabel,
-          deficitText,
-          valueStyle?.copyWith(
-            color: deficitColor,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatBlock extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color valueColor;
-  final Color labelColor;
-
-  const _StatBlock({
-    required this.label,
-    required this.value,
-    required this.valueColor,
-    required this.labelColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
+    Widget cell(String label, String value, {Color? color}) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(color: labelColor),
+        Text(label, style: labelStyle),
+        const SizedBox(height: 2),
+        Text(value, style: valueStyle?.copyWith(color: color)),
+      ],
+    );
+
+    return Row(
+      children: [
+        Expanded(child: cell('In', intake.toStringAsFixed(0))),
+        Expanded(
+          child: cell('Out', expenditureSet ? '$expenditure' : '—'),
         ),
-        Text(
-          value,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: valueColor,
+        Expanded(
+          child: cell(
+            inSurplus ? 'Surplus' : 'Deficit',
+            expenditureSet ? deficit!.abs().toStringAsFixed(0) : '—',
+            color: deficitColor,
           ),
         ),
       ],
