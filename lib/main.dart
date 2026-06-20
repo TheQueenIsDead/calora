@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/diary_provider.dart';
@@ -71,24 +72,53 @@ class _RootScaffold extends StatefulWidget {
 class _RootScaffoldState extends State<_RootScaffold>
     with WidgetsBindingObserver {
   int _index = 0;
+  Timer? _activeCaloriesTimer;
 
   static const _screens = [HomeScreen(), TrendsScreen(), SettingsScreen()];
+  static const _activeCaloriesInterval = Duration(minutes: 5);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _startActiveCaloriesTimer();
   }
 
   @override
   void dispose() {
+    _activeCaloriesTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _onResumed();
+    if (state == AppLifecycleState.resumed) {
+      _onResumed();
+      _startActiveCaloriesTimer();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _activeCaloriesTimer?.cancel();
+      _activeCaloriesTimer = null;
+    }
+  }
+
+  void _startActiveCaloriesTimer() {
+    _activeCaloriesTimer?.cancel();
+    _activeCaloriesTimer = Timer.periodic(_activeCaloriesInterval, (_) {
+      if (!mounted) return;
+      final diary = context.read<DiaryProvider>();
+      final now = DateTime.now();
+      final selected = diary.selectedDate;
+      final viewingToday = selected.year == now.year &&
+          selected.month == now.month &&
+          selected.day == now.day;
+      // Past days don't change minute-to-minute, so skip the periodic HC
+      // reads when the user is browsing history. loadDay still refreshes
+      // when they switch days.
+      if (!viewingToday) return;
+      diary.refreshActiveCalories();
+    });
   }
 
   Future<void> _onResumed() async {

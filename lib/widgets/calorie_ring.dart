@@ -6,8 +6,12 @@ class CalorieRing extends StatelessWidget {
   final bool isOver;
   final double size;
 
-  /// Override the centre label. Defaults to the percentage string.
+  /// Override the centre label. Defaults to the percentage string. Ignored
+  /// when [centerChild] is set.
   final String? label;
+
+  /// Custom widget rendered inside the ring. Wins over [label].
+  final Widget? centerChild;
 
   /// Override the ring fill colour. Defaults to primary / error.
   final Color? color;
@@ -24,6 +28,7 @@ class CalorieRing extends StatelessWidget {
     this.isOver = false,
     this.size = 90,
     this.label,
+    this.centerChild,
     this.color,
     this.labelColor,
     this.backgroundColor,
@@ -49,14 +54,15 @@ class CalorieRing extends StatelessWidget {
           backgroundColor: bgColor,
         ),
         child: Center(
-          child: Text(
-            label ?? '${(progress * 100).toStringAsFixed(0)}%',
-            style: theme.textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: textColor,
-            ),
-            textAlign: TextAlign.center,
-          ),
+          child: centerChild ??
+              Text(
+                label ?? '${(progress * 100).toStringAsFixed(0)}%',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+                textAlign: TextAlign.center,
+              ),
         ),
       ),
     );

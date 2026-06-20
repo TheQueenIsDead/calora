@@ -23,10 +23,11 @@ android {
 
     defaultConfig {
         applicationId = "nz.calora.calora"
-        minSdk = flutter.minSdkVersion
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        resValue("string", "app_name", "Calora")
     }
 
     signingConfigs {
@@ -41,6 +42,11 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
+        }
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            resValue("string", "app_name", "Calora (Debug)")
         }
     }
 }

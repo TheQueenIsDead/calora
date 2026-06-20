@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/settings_provider.dart';
+import '../services/health_service.dart';
 
 enum _Sex { male, female }
 
@@ -53,6 +54,8 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
 
   _Sex _sex = _Sex.male;
   _ActivityLevel _activity = _ActivityLevel.moderatelyActive;
+  bool _heightFromHc = false;
+  bool _weightFromHc = false;
 
   @override
   void initState() {
@@ -87,7 +90,32 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
       _activity = _ActivityLevel
           .values[actIdx.clamp(0, _ActivityLevel.values.length - 1)];
     });
+    if (mounted && context.read<SettingsProvider>().useHealthConnect) {
+      await _syncFromHealthConnect();
+    }
     await _savePrefs();
+  }
+
+  Future<void> _syncFromHealthConnect() async {
+    final weightKg = await HealthService.instance.getLatestWeightKg();
+    final heightCm = await HealthService.instance.getLatestHeightCm();
+    if (!mounted) return;
+    setState(() {
+      if (weightKg != null) {
+        _weightCtrl.text = weightKg % 1 == 0
+            ? weightKg.toInt().toString()
+            : weightKg.toStringAsFixed(1);
+        _weightFromHc = true;
+      } else {
+        _weightFromHc = false;
+      }
+      if (heightCm != null) {
+        _heightCtrl.text = heightCm.toString();
+        _heightFromHc = true;
+      } else {
+        _heightFromHc = false;
+      }
+    });
   }
 
   Future<void> _savePrefs() async {
@@ -156,6 +184,9 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final result = _calculate();
+    final useHc = context.watch<SettingsProvider>().useHealthConnect;
+    final heightLocked = useHc && _heightFromHc;
+    final weightLocked = useHc && _weightFromHc;
 
     return Scaffold(
       appBar: AppBar(title: const Text('BMR Calculator')),
@@ -195,6 +226,26 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
                   ),
                   const SizedBox(height: 16),
 
+                  if (useHc && (heightLocked || weightLocked)) ...[
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.sync,
+                          size: 14,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Synced from Health Connect',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
                   // Age / Height / Weight
                   Row(
                     children: [
@@ -218,10 +269,15 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
                         child: TextField(
                           controller: _heightCtrl,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
+                          readOnly: heightLocked,
+                          decoration: InputDecoration(
                             labelText: 'Height',
-                            suffix: Text('cm'),
-                            border: OutlineInputBorder(),
+                            suffix: const Text('cm'),
+                            border: const OutlineInputBorder(),
+                            filled: heightLocked,
+                            fillColor: heightLocked
+                                ? theme.colorScheme.surfaceContainerHighest
+                                : null,
                           ),
                           onChanged: (_) {
                             setState(() {});
@@ -236,10 +292,15 @@ class _BmrCalculatorScreenState extends State<BmrCalculatorScreen> {
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
-                          decoration: const InputDecoration(
+                          readOnly: weightLocked,
+                          decoration: InputDecoration(
                             labelText: 'Weight',
-                            suffix: Text('kg'),
-                            border: OutlineInputBorder(),
+                            suffix: const Text('kg'),
+                            border: const OutlineInputBorder(),
+                            filled: weightLocked,
+                            fillColor: weightLocked
+                                ? theme.colorScheme.surfaceContainerHighest
+                                : null,
                           ),
                           onChanged: (_) {
                             setState(() {});

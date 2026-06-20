@@ -3,7 +3,12 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/diary_entry.dart';
 import '../services/database_service.dart';
+import '../services/health_service.dart';
 import '../services/user_preferences.dart';
+
+// HcWorkout is re-exported through this provider so screens don't need to
+// import HealthService directly.
+export '../services/health_service.dart' show HcWorkout, HcDailyActivity;
 
 class DiaryProvider extends ChangeNotifier {
   List<DiaryEntry> _entries = [];
@@ -15,6 +20,10 @@ class DiaryProvider extends ChangeNotifier {
   bool _isLocked = false;
   int _waterMl = 0;
   int _changeToken = 0;
+  int _activeCalories = 0;
+  int _ambientActiveKcal = 0;
+  int? _bmrHc;
+  List<HcWorkout> _workouts = const [];
 
   List<DiaryEntry> get entries => _entries;
   DateTime get selectedDate => _selectedDate;
@@ -23,6 +32,13 @@ class DiaryProvider extends ChangeNotifier {
   bool get loading => _loading;
   bool get isLocked => _isLocked;
   int get waterMl => _waterMl;
+  /// Total ACTIVE_ENERGY_BURNED for the day = sum(workouts.activeKcal) + ambient.
+  int get activeCalories => _activeCalories;
+
+  /// Active calories not attributed to any workout window.
+  int get ambientActiveKcal => _ambientActiveKcal;
+  int? get bmrHc => _bmrHc;
+  List<HcWorkout> get workouts => _workouts;
 
   double get totalCalories => _entries.fold(0, (sum, e) => sum + e.calories);
   double get totalFat => _entries.fold(0, (sum, e) => sum + e.fat);
@@ -47,7 +63,46 @@ class DiaryProvider extends ChangeNotifier {
   /// "today" when they backgrounded and the date has since rolled over,
   /// advances to the new today automatically.
   Future<void> handleAppResume() async {
-    if (_wasViewingToday) await loadDay(DateTime.now());
+    if (_wasViewingToday) {
+      await loadDay(DateTime.now());
+    } else {
+      await refreshActiveCalories();
+    }
+  }
+
+  Future<void> refreshActiveCalories() async {
+    final enabled = await UserPreferences.instance.getUseHealthConnect();
+    if (!enabled) {
+      if (_activeCalories != 0 ||
+          _ambientActiveKcal != 0 ||
+          _bmrHc != null ||
+          _workouts.isNotEmpty) {
+        _activeCalories = 0;
+        _ambientActiveKcal = 0;
+        _bmrHc = null;
+        _workouts = const [];
+        notifyListeners();
+      }
+      return;
+    }
+    // Two HC IPC roundtrips in parallel: per-day activity (workouts +
+    // attributed active records + ambient) and the most-recent BMR rate.
+    final reads = await Future.wait([
+      HealthService.instance.getActivityForDay(_selectedDate),
+      HealthService.instance.getLatestBmrKcal(),
+    ]);
+    // Re-check the toggle after the awaits — the user can disable HC while
+    // this refresh is in flight, and the cleanup-branch above would have
+    // already run before our results land.
+    final stillEnabled = await UserPreferences.instance.getUseHealthConnect();
+    if (!stillEnabled) return;
+    final activity = reads[0] as HcDailyActivity;
+    final bmr = reads[1] as int?;
+    _activeCalories = activity.totalActiveKcal;
+    _ambientActiveKcal = activity.ambientKcal;
+    _workouts = activity.workouts;
+    _bmrHc = bmr;
+    notifyListeners();
   }
 
   Future<void> loadDay(DateTime date) async {
@@ -66,6 +121,7 @@ class DiaryProvider extends ChangeNotifier {
     _isLocked = await prefs.getLockState(date);
     _loading = false;
     notifyListeners();
+    unawaited(refreshActiveCalories());
   }
 
   Future<void> toggleLock() async {
