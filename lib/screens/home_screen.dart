@@ -21,6 +21,20 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// Resting calories that Out includes but the workouts + ambient rows don't —
+/// i.e. HC's TOTAL minus everything the activity card already itemises.
+/// Returns 0 when TOTAL is unavailable so we don't fabricate the number.
+int _restingKcal(DiaryProvider diary) {
+  final total = diary.totalBurnHc;
+  if (total == null) return 0;
+  final workoutsTotal = diary.workouts.fold<int>(
+    0,
+    (s, w) => s + (w.totalKcal ?? w.activeKcal),
+  );
+  final resting = total - workoutsTotal - diary.ambientActiveKcal;
+  return resting > 0 ? resting : 0;
+}
+
 int _computeExpenditure(DiaryProvider diary, SettingsProvider settings) {
   // Two clean branches: when Health Connect is on, Out is whatever HC says
   // it is (TOTAL_CALORIES_BURNED summed over the day, basal + active). When
@@ -120,6 +134,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           _ActivitiesCard(
                             workouts: diary.workouts,
                             ambientActiveKcal: diary.ambientActiveKcal,
+                            restingKcal: _restingKcal(diary),
                           ),
                         ],
                         const SizedBox(height: 20),
@@ -359,9 +374,16 @@ class _SummaryCard extends StatelessWidget {
 class _ActivitiesCard extends StatelessWidget {
   final List<HcWorkout> workouts;
   final int ambientActiveKcal;
+
+  /// HC TOTAL minus everything itemised below — i.e. basal-at-rest plus
+  /// movement that wasn't claimed by a workout or the ambient stream.
+  /// Zero when HC TOTAL is unavailable, in which case the row is hidden.
+  final int restingKcal;
+
   const _ActivitiesCard({
     required this.workouts,
     required this.ambientActiveKcal,
+    required this.restingKcal,
   });
 
   @override
@@ -373,7 +395,7 @@ class _ActivitiesCard extends StatelessWidget {
       0,
       (s, w) => s + (w.totalKcal ?? w.activeKcal),
     );
-    final totalKcal = workoutSum + ambientActiveKcal;
+    final totalKcal = workoutSum + ambientActiveKcal + restingKcal;
     return Card(
       elevation: 0,
       clipBehavior: Clip.antiAlias,
@@ -403,6 +425,7 @@ class _ActivitiesCard extends StatelessWidget {
           children: [
             for (final w in workouts) _ActivityRow(workout: w),
             if (ambientActiveKcal > 0) _AmbientRow(kcal: ambientActiveKcal),
+            if (restingKcal > 0) _RestingRow(kcal: restingKcal),
           ],
         ),
       ),
@@ -434,6 +457,49 @@ class _AmbientRow extends StatelessWidget {
                 Text('Ambient movement', style: theme.textTheme.bodyMedium),
                 Text(
                   'Active calories outside tracked workouts',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '$kcal kcal',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RestingRow extends StatelessWidget {
+  final int kcal;
+  const _RestingRow({required this.kcal});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(
+            Icons.bedtime_outlined,
+            size: 20,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Resting', style: theme.textTheme.bodyMedium),
+                Text(
+                  'Basal calories Health Connect tracked for you',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
