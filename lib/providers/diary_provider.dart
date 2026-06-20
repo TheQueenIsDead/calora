@@ -23,6 +23,7 @@ class DiaryProvider extends ChangeNotifier {
   int _activeCalories = 0;
   int _ambientActiveKcal = 0;
   int? _bmrHc;
+  int? _totalBurnHc;
   List<HcWorkout> _workouts = const [];
 
   List<DiaryEntry> get entries => _entries;
@@ -38,6 +39,10 @@ class DiaryProvider extends ChangeNotifier {
   /// Active calories not attributed to any workout window.
   int get ambientActiveKcal => _ambientActiveKcal;
   int? get bmrHc => _bmrHc;
+
+  /// HC's TOTAL_CALORIES_BURNED sum (basal + active over the day window).
+  /// Null when the user's HC source doesn't publish it.
+  int? get totalBurnHc => _totalBurnHc;
   List<HcWorkout> get workouts => _workouts;
 
   double get totalCalories => _entries.fold(0, (sum, e) => sum + e.calories);
@@ -76,10 +81,12 @@ class DiaryProvider extends ChangeNotifier {
       if (_activeCalories != 0 ||
           _ambientActiveKcal != 0 ||
           _bmrHc != null ||
+          _totalBurnHc != null ||
           _workouts.isNotEmpty) {
         _activeCalories = 0;
         _ambientActiveKcal = 0;
         _bmrHc = null;
+        _totalBurnHc = null;
         _workouts = const [];
         notifyListeners();
       }
@@ -129,6 +136,7 @@ class DiaryProvider extends ChangeNotifier {
     _ambientActiveKcal = activity.ambientKcal;
     _workouts = adjusted;
     _bmrHc = bmr;
+    _totalBurnHc = activity.totalBurnKcal;
     notifyListeners();
   }
 

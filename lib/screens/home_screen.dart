@@ -23,10 +23,15 @@ class HomeScreen extends StatefulWidget {
 
 int _computeExpenditure(DiaryProvider diary, SettingsProvider settings) {
   if (!settings.useHealthConnect) return settings.tdee;
-  // HC reports BMR as a rate (kcal/day), not a measured per-minute basal
-  // sum, so for today we scale by the fraction of the day elapsed — the
-  // resulting Out matches HC/Fit's "so far today" semantics. Past days
-  // are fully elapsed and use the full daily rate.
+  // Prefer HC's TOTAL_CALORIES_BURNED sum when the user's source publishes
+  // it — that stream is already basal + active over the day window, with
+  // HC's own time-of-day handling. The Activities card is purely
+  // informational in this branch.
+  final total = diary.totalBurnHc;
+  if (total != null && total > 0) return total;
+
+  // Fallback for sources that don't write TOTAL: scale BMR by the elapsed
+  // fraction of today (or full 24h for past days) and add measured active.
   final bmr = diary.bmrHc ?? settings.bmr;
   if (bmr <= 0) return settings.tdee + diary.activeCalories;
   final now = DateTime.now();
@@ -472,12 +477,11 @@ class _ActivityRow extends StatelessWidget {
     final durStr = mins >= 60
         ? '${mins ~/ 60}h ${mins % 60}m'
         : '${mins}m';
-    // Workouts whose source wrote a session total but no paired
-    // ACTIVE_ENERGY_BURNED records render their kcal with a tilde so the
-    // value reads as an estimate. DiaryProvider already converted those
-    // session totals into a basal-subtracted active contribution.
-    final active = workout.activeKcal;
-    final showFallback = workout.activeIsEstimated;
+    // Out is sourced from HC's TOTAL_CALORIES_BURNED sum when available,
+    // so the activity card is purely informational. Show HC's reported
+    // session total when present (matches what HC's own UI shows for the
+    // workout), otherwise fall back to our measured active.
+    final display = workout.totalKcal ?? workout.activeKcal;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -507,10 +511,9 @@ class _ActivityRow extends StatelessWidget {
             ),
           ),
           Text(
-            showFallback ? '~$active kcal' : '$active kcal',
+            '$display kcal',
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
-              color: showFallback ? theme.colorScheme.onSurfaceVariant : null,
             ),
           ),
         ],

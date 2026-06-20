@@ -164,11 +164,14 @@ class HealthService {
     }
   }
 
-  /// Returns workouts and ambient active calories for [date]. Each workout's
-  /// activeKcal is the sum of ACTIVE_ENERGY_BURNED records whose midpoint
-  /// falls inside its time window — i.e. true active burn from HC, with no
-  /// basal double-count. Ambient is the remainder of the day's active not
-  /// claimed by any workout. totalActiveKcal is the day's full active sum.
+  /// Returns workouts, ambient active calories, and total burn for [date].
+  /// Each workout's activeKcal is the sum of ACTIVE_ENERGY_BURNED records
+  /// whose midpoint falls inside its time window — i.e. true active burn
+  /// from HC, with no basal double-count. Ambient is the remainder of the
+  /// day's active not claimed by any workout. [totalKcal] sums HC's
+  /// TOTAL_CALORIES_BURNED stream (basal + active over the day window) when
+  /// the user's source publishes it — null otherwise, in which case callers
+  /// fall back to BMR × elapsed-fraction + active.
   Future<HcDailyActivity> getActivityForDay(DateTime date) async {
     await _ensureConfigured();
     final start = DateTime(date.year, date.month, date.day);
@@ -178,9 +181,10 @@ class HealthService {
     final queryEnd = start.isAtSameMomentAs(today) ? now : dayEnd;
     final dateStr = start.toIso8601String().substring(0, 10);
     try {
-      // Two HC reads in parallel — workouts and active calorie records for
-      // the day. We attribute each active record to its enclosing workout
-      // (by midpoint) or fall back to ambient.
+      // Three HC reads in parallel — workouts, active records, total burn.
+      // Active records get attributed to workouts (by midpoint) or to
+      // ambient; total is summed directly and used as the authoritative
+      // expenditure number when present.
       final reads = await Future.wait([
         _health.getHealthDataFromTypes(
           types: [HealthDataType.WORKOUT],
@@ -192,9 +196,15 @@ class HealthService {
           startTime: start,
           endTime: queryEnd,
         ),
+        _health.getHealthDataFromTypes(
+          types: [HealthDataType.TOTAL_CALORIES_BURNED],
+          startTime: start,
+          endTime: queryEnd,
+        ),
       ]);
       final workoutPoints = reads[0];
       final activePoints = reads[1];
+      final totalPoints = reads[2];
 
       // Build the workouts list, filtered to those whose midpoint lands
       // in this day so midnight-crossing sessions count once.
@@ -235,10 +245,21 @@ class HealthService {
         }
       }
 
+      var totalBurn = 0.0;
+      var totalRecords = 0;
+      for (final p in totalPoints) {
+        final v = p.value;
+        if (v is NumericHealthValue) {
+          totalBurn += v.numericValue.toDouble();
+          totalRecords++;
+        }
+      }
+
       debugPrint(
         '[HealthService] activity $dateStr: ${workouts.length} workout(s), '
         '${totalActive.round()} kcal active total '
-        '(${ambient.round()} ambient)',
+        '(${ambient.round()} ambient), '
+        'TOTAL=${totalRecords > 0 ? totalBurn.round() : "—"}',
       );
 
       return HcDailyActivity(
@@ -253,6 +274,7 @@ class HealthService {
             .toList(growable: false),
         ambientKcal: ambient.round(),
         totalActiveKcal: totalActive.round(),
+        totalBurnKcal: totalRecords > 0 ? totalBurn.round() : null,
       );
     } catch (e, st) {
       debugPrint('[HealthService] activity error: $e\n$st');
@@ -260,6 +282,7 @@ class HealthService {
         workouts: [],
         ambientKcal: 0,
         totalActiveKcal: 0,
+        totalBurnKcal: null,
       );
     }
   }
@@ -331,10 +354,16 @@ class HcDailyActivity {
   final int ambientKcal;
   final int totalActiveKcal;
 
+  /// Sum of HC's TOTAL_CALORIES_BURNED records for the day window (basal +
+  /// active by definition). Null when no source wrote any TOTAL records —
+  /// callers must then fall back to computing basal × elapsed + active.
+  final int? totalBurnKcal;
+
   const HcDailyActivity({
     required this.workouts,
     required this.ambientKcal,
     required this.totalActiveKcal,
+    required this.totalBurnKcal,
   });
 }
 
