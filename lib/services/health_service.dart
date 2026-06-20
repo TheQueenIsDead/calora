@@ -292,13 +292,23 @@ class HcWeightPoint {
 class HcWorkout {
   final HealthWorkoutActivityType activityType;
 
-  /// Sum of ACTIVE_ENERGY_BURNED records whose midpoint fell inside this
-  /// workout's window. Excludes basal — safe to add on top of BMR.
+  /// Active kcal credited to this workout. Either:
+  /// - Sum of ACTIVE_ENERGY_BURNED records whose midpoint fell inside the
+  ///   workout's window (measured, [activeIsEstimated]=false), or
+  /// - `totalKcal - basal_during_workout` as a derived estimate when no
+  ///   paired active records exist ([activeIsEstimated]=true).
+  ///
+  /// Either way, basal-excluded — safe to add on top of BMR.
   final int activeKcal;
 
+  /// True when [activeKcal] was derived from [totalKcal] rather than
+  /// measured from ACTIVE_ENERGY_BURNED records. Surfaces with a tilde
+  /// in the UI so users can see it's an estimate.
+  final bool activeIsEstimated;
+
   /// HC's own ExerciseSession.totalEnergyBurned (basal + active for the
-  /// workout window). Surfaced only as a display fallback when no
-  /// matching ACTIVE_ENERGY_BURNED records were written by the source.
+  /// workout window). Kept for downstream callers that may want the raw
+  /// session value.
   final int? totalKcal;
 
   final DateTime start;
@@ -310,6 +320,7 @@ class HcWorkout {
     required this.totalKcal,
     required this.start,
     required this.end,
+    this.activeIsEstimated = false,
   });
 
   Duration get duration => end.difference(start);

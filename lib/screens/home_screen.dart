@@ -464,13 +464,12 @@ class _ActivityRow extends StatelessWidget {
     final durStr = mins >= 60
         ? '${mins ~/ 60}h ${mins % 60}m'
         : '${mins}m';
-    // Show HC's session total in parentheses when the source wrote one but
-    // no matching ACTIVE_ENERGY_BURNED records to back it up. Active-derived
-    // numbers are basal-excluded, so this only triggers for rare sources
-    // that publish workouts without paired active data.
+    // Workouts whose source wrote a session total but no paired
+    // ACTIVE_ENERGY_BURNED records render their kcal with a tilde so the
+    // value reads as an estimate. DiaryProvider already converted those
+    // session totals into a basal-subtracted active contribution.
     final active = workout.activeKcal;
-    final session = workout.totalKcal;
-    final showFallback = active == 0 && session != null && session > 0;
+    final showFallback = workout.activeIsEstimated;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -500,7 +499,7 @@ class _ActivityRow extends StatelessWidget {
             ),
           ),
           Text(
-            showFallback ? '~$session kcal' : '$active kcal',
+            showFallback ? '~$active kcal' : '$active kcal',
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
               color: showFallback ? theme.colorScheme.onSurfaceVariant : null,
