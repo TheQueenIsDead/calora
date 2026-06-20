@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.6.0](https://github.com/TheQueenIsDead/calora/compare/v1.5.0...v1.6.0) (2026-06-20)
+
+
+### Features
+
+* health connect ([b55aab1](https://github.com/TheQueenIsDead/calora/commit/b55aab1b53b7c310b005104046d4aba2bfe76980))
+* **health-connect:** refine expenditure model, drop local weight, redesign trends ([a8543a2](https://github.com/TheQueenIsDead/calora/commit/a8543a27a6c204209e6e3dd8e63aed59e793d4b2))
+* **health:** attribute active calories to workouts directly ([1c7a6c2](https://github.com/TheQueenIsDead/calora/commit/1c7a6c284f7186d52d9cf478a7d29a6683fb3845))
+* **home:** redesign calorie summary card for scanability ([e46fd75](https://github.com/TheQueenIsDead/calora/commit/e46fd75ac62b46a1f9c68d6724af3e24988793d5))
+* integrate Health Connect for active calories, weight, and height ([8e60eb5](https://github.com/TheQueenIsDead/calora/commit/8e60eb5683159798d4fe131e7803e187ab10624d))
+
+
+### Bug Fixes
+
+* **diary:** drop in-flight HC reads if the toggle was disabled mid-refresh ([5e3f27c](https://github.com/TheQueenIsDead/calora/commit/5e3f27c26cc65cc3d150c17e1ad02ee1ef62a724))
+* **health:** assign midnight-crossing workouts to a single day ([f447426](https://github.com/TheQueenIsDead/calora/commit/f44742620710a2c2dc393d016d5b8619331ec918))
+* **home:** include HC activity in expenditure even when BMR is unset ([642d256](https://github.com/TheQueenIsDead/calora/commit/642d25671fc9be6c71bfdb6a4ae2456a9ffd7eeb))
+* **trends:** keep streak alive on mornings before first meal ([4272e5d](https://github.com/TheQueenIsDead/calora/commit/4272e5d5c893330e71468e99bc95c51af74e1f4a))
+* **weight:** reload from HC when the toggle flips ([18f839a](https://github.com/TheQueenIsDead/calora/commit/18f839aa14b41976f32c9c36dbe4bfb71fb5ab17))
+
+
+### Performance Improvements
+
+* **diary:** parallelize the three HC reads in refreshActiveCalories ([4fbe997](https://github.com/TheQueenIsDead/calora/commit/4fbe9978bff38260ace22e5711b841e7420e0fb2))
+* **health:** bound BMR record scan to last 30 days ([768473a](https://github.com/TheQueenIsDead/calora/commit/768473a174f410fae7efaaca681864b942300ec5))
+* **main:** skip the 5-min HC refresh when viewing a past day ([ed587ea](https://github.com/TheQueenIsDead/calora/commit/ed587eadac58d93e473df6c0ef75c133ff3666b0))
+
 ## [1.5.0](https://github.com/TheQueenIsDead/calora/compare/v1.4.0...v1.5.0) (2026-06-12)
 
 
