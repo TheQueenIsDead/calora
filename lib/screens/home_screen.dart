@@ -583,7 +583,7 @@ class _WaterCardState extends State<_WaterCard> {
       elevation: 0,
       color: theme.colorScheme.secondaryContainer,
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -686,8 +686,8 @@ class _WaterCardState extends State<_WaterCard> {
                   ),
                   Text(
                     'Target  $targetMl ml',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: onBg.withValues(alpha: 0.65),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: onBg.withValues(alpha: 0.7),
                     ),
                   ),
                   if (!widget.isLocked && vessels.isNotEmpty) ...[
@@ -1025,7 +1025,7 @@ class _MacroBar extends StatelessWidget {
         Text(
           '${value.toStringAsFixed(0)}g $label',
           style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
+            color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
           ),
         ),
       ],
