@@ -23,15 +23,23 @@ class HomeScreen extends StatefulWidget {
 
 int _computeExpenditure(DiaryProvider diary, SettingsProvider settings) {
   if (!settings.useHealthConnect) return settings.tdee;
-  // diary.activeCalories is the day's total ACTIVE_ENERGY_BURNED from HC —
-  // by definition basal-excluded — so it composes cleanly with BMR. Workouts
-  // contribute through that total (their activeKcal is attributed from the
-  // same record stream), so we never double-count.
+  // HC reports BMR as a rate (kcal/day), not a measured per-minute basal
+  // sum, so for today we scale by the fraction of the day elapsed — the
+  // resulting Out matches HC/Fit's "so far today" semantics. Past days
+  // are fully elapsed and use the full daily rate.
   final bmr = diary.bmrHc ?? settings.bmr;
-  if (bmr > 0) return bmr + diary.activeCalories;
-  // No BMR set anywhere — fall back to stored TDEE and still credit HC
-  // activity so the Activities card and Out figure stay in sync.
-  return settings.tdee + diary.activeCalories;
+  if (bmr <= 0) return settings.tdee + diary.activeCalories;
+  final now = DateTime.now();
+  final selected = diary.selectedDate;
+  final isToday = selected.year == now.year &&
+      selected.month == now.month &&
+      selected.day == now.day;
+  final basal = isToday
+      ? (bmr * now.difference(DateTime(now.year, now.month, now.day)).inSeconds /
+              86400)
+          .round()
+      : bmr;
+  return basal + diary.activeCalories;
 }
 
 
