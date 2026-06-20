@@ -5,6 +5,8 @@ import 'package:home_widget/home_widget.dart';
 
 import '../providers/diary_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/database_service.dart';
+import '../services/user_preferences.dart';
 
 class CalorieWidgetService {
   CalorieWidgetService._();
@@ -19,14 +21,20 @@ class CalorieWidgetService {
     DiaryProvider diary,
     SettingsProvider settings,
   ) async {
-    await _push(diary, settings);
-    diary.addListener(() => _push(diary, settings));
-    settings.addListener(() => _push(diary, settings));
+    await _push(settings);
+    diary.addListener(() => _push(settings));
+    settings.addListener(() => _push(settings));
   }
 
-  Future<void> _push(DiaryProvider diary, SettingsProvider settings) async {
-    final total = diary.totalCalories;
-    final goal = diary.dailyGoal;
+  /// Always pushes TODAY's calories to the widget, even if the diary
+  /// provider is currently displaying a past day. Reads straight from
+  /// SQLite so the widget never reflects historical navigation.
+  Future<void> _push(SettingsProvider settings) async {
+    final today = DateTime.now();
+    final entries = await DatabaseService.instance.getEntriesForDate(today);
+    final total = entries.fold<double>(0, (s, e) => s + e.calories);
+    final goal = await DatabaseService.instance.getEffectiveGoal(today) ??
+        await UserPreferences.instance.getDailyGoal();
     final tdee = settings.tdee;
     final progress = (goal > 0 ? total / goal : 0.0).clamp(0.0, 1.0);
     final hasTdee = tdee > 0;

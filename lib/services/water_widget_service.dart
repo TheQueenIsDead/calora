@@ -49,20 +49,22 @@ class WaterWidgetService {
       );
       await diary.refreshCurrentDay();
     }
-    await _push(diary.waterMl, settings.waterTargetMl, settings.vessels);
+    await _push(settings.waterTargetMl, settings.vessels);
     diary.addListener(
-      () => _push(diary.waterMl, settings.waterTargetMl, settings.vessels),
+      () => _push(settings.waterTargetMl, settings.vessels),
     );
     settings.addListener(
-      () => _push(diary.waterMl, settings.waterTargetMl, settings.vessels),
+      () => _push(settings.waterTargetMl, settings.vessels),
     );
   }
 
-  Future<void> _push(
-    int waterMl,
-    int targetMl,
-    List<WaterVessel> vessels,
-  ) async {
+  /// Always pushes TODAY's water to the widget, even if the diary
+  /// provider is currently displaying a past day. Reads straight from
+  /// SQLite so the widget never reflects historical navigation.
+  Future<void> _push(int targetMl, List<WaterVessel> vessels) async {
+    final waterMl = await DatabaseService.instance.getWaterMlForDate(
+      DateTime.now(),
+    );
     await HomeWidget.saveWidgetData<String>(
       'water_date',
       DateTime.now().toIso8601String().substring(0, 10),
