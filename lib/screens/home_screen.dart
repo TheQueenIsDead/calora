@@ -367,7 +367,12 @@ class _ActivitiesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final workoutSum = workouts.fold<int>(0, (s, w) => s + w.activeKcal);
+    // Match the per-row display (totalKcal preferred, else activeKcal) so
+    // the header sum equals what the user sees expanded.
+    final workoutSum = workouts.fold<int>(
+      0,
+      (s, w) => s + (w.totalKcal ?? w.activeKcal),
+    );
     final totalKcal = workoutSum + ambientActiveKcal;
     return Card(
       elevation: 0,
