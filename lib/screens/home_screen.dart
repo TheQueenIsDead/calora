@@ -304,7 +304,7 @@ class _SummaryCard extends StatelessWidget {
               children: [
                 CalorieRing(
                   progress: diary.progress,
-                  size: 104,
+                  size: 72,
                   color: isOverTdee
                       ? theme.colorScheme.error
                       : isOverGoal
@@ -315,17 +315,19 @@ class _SummaryCard extends StatelessWidget {
                     children: [
                       Text(
                         remaining.abs().toStringAsFixed(0),
-                        style: theme.textTheme.headlineSmall?.copyWith(
+                        style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: ringValueColor,
                           height: 1.0,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1),
                       Text(
                         ringTagline,
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: mutedColor,
+                          fontSize: 10,
+                          height: 1.0,
                         ),
                       ),
                     ],
