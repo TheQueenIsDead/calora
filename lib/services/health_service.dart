@@ -15,9 +15,12 @@ class HealthService {
     HealthDataType.WEIGHT,
     HealthDataType.HEIGHT,
     HealthDataType.WORKOUT,
-    // The package's WORKOUT read also queries Distance + Steps internally.
+    // The package's WORKOUT read also queries Distance + Steps + Total
+    // internally. Total isn't surfaced anywhere in our UI but the request
+    // must succeed or the whole workout fetch throws SecurityException.
     HealthDataType.DISTANCE_DELTA,
     HealthDataType.STEPS,
+    HealthDataType.TOTAL_CALORIES_BURNED,
   ];
 
   // Read-only integration; derived from _types so adding a type can't drift.

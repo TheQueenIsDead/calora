@@ -2,6 +2,9 @@
     <!-- Health Connect permissions -->
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
     <uses-permission android:name="android.permission.health.READ_BASAL_METABOLIC_RATE" />
+    <!-- Not surfaced directly, but the health plugin's workout reader
+         eagerly fetches TotalCaloriesBurnedRecord for each session. -->
+    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
     <uses-permission android:name="android.permission.health.READ_HEIGHT" />
     <uses-permission android:name="android.permission.health.READ_WEIGHT" />
     <uses-permission android:name="android.permission.health.READ_EXERCISE" />
