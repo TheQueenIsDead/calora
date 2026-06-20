@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.7.0](https://github.com/TheQueenIsDead/calora/compare/calora-v1.6.0...calora-v1.7.0) (2026-06-20)
+
+
+### Features
+
+* **home:** add a Resting row to the activities card so it reconciles with Out ([b546da5](https://github.com/TheQueenIsDead/calora/commit/b546da5352ba733a7fe7fb1fbc7988c5094bf02a))
+* **home:** prefer HC's TOTAL_CALORIES_BURNED as Out ([c7de4a7](https://github.com/TheQueenIsDead/calora/commit/c7de4a7f968f75f699d6497bedd268631cdd9e5a))
+* **home:** scale basal by elapsed day fraction to match HC's so-far semantics ([7842bfd](https://github.com/TheQueenIsDead/calora/commit/7842bfdc483f300e1c46bddbc83714b362695c22))
+* **home:** split Resting into BMR baseline and Other-activity remainder ([3e28191](https://github.com/TheQueenIsDead/calora/commit/3e2819189cce536c7d20278269d160807b16505c))
+* **trends:** add a swipeable deficit chart next to the calorie chart ([1510de0](https://github.com/TheQueenIsDead/calora/commit/1510de07e708b7148ca1767e25eda369d6cefc77))
+
+
+### Bug Fixes
+
+* **health:** request READ_HEALTH_DATA_HISTORY so pre-grant records appear ([441df98](https://github.com/TheQueenIsDead/calora/commit/441df984ade6a9ac84e45a3e86bd1154dfeac7a1))
+* **health:** restore READ_TOTAL_CALORIES_BURNED for workout reads ([4242d3e](https://github.com/TheQueenIsDead/calora/commit/4242d3ef9c45bf380587739523928a6f857da81e))
+* **home:** activities card subtitle now sums what each row displays ([a4e7ed9](https://github.com/TheQueenIsDead/calora/commit/a4e7ed98b344d00ed7e08f7479980a155a59887e))
+* **home:** credit Out for workouts with only a session total ([93bc1d0](https://github.com/TheQueenIsDead/calora/commit/93bc1d04e5497605a0ce137faf421bd88a664be4))
+* **widgets:** always show today's data, not the diary's selected day ([edba8cf](https://github.com/TheQueenIsDead/calora/commit/edba8cfde6b95941466e3724c02dec3b13fdfe24))
+
 ## [1.6.0](https://github.com/TheQueenIsDead/calora/compare/calora-v1.5.0...calora-v1.6.0) (2026-06-20)
 
 
