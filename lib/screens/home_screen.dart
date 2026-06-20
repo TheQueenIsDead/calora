@@ -21,18 +21,41 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-/// Resting calories that Out includes but the workouts + ambient rows don't —
-/// i.e. HC's TOTAL minus everything the activity card already itemises.
-/// Returns 0 when TOTAL is unavailable so we don't fabricate the number.
-int _restingKcal(DiaryProvider diary) {
+/// Resting basal calories — anchored to the user's BMR rather than absorbing
+/// any leftover from HC TOTAL. For today, scales by elapsed fraction of the
+/// day so the number matches HC's "so far today" semantics; past days use
+/// the full daily rate. Returns 0 if neither HC nor the local calculator
+/// has a BMR (caller hides the row).
+int _restingKcal(DiaryProvider diary, SettingsProvider settings) {
+  if (diary.totalBurnHc == null) return 0;
+  final bmr = diary.bmrHc ?? settings.bmr;
+  if (bmr <= 0) return 0;
+  final now = DateTime.now();
+  final selected = diary.selectedDate;
+  final isToday = selected.year == now.year &&
+      selected.month == now.month &&
+      selected.day == now.day;
+  if (!isToday) return bmr;
+  final elapsedSec =
+      now.difference(DateTime(now.year, now.month, now.day)).inSeconds;
+  return (bmr * elapsedSec / 86400).round();
+}
+
+/// Everything HC TOTAL accounts for that isn't a tracked workout, ambient
+/// active, or basal — i.e. light/incidental movement that HC measured but
+/// didn't categorise as ACTIVE. Returns 0 when TOTAL or BMR is missing
+/// (without those, the math can't reconcile honestly).
+int _otherMovementKcal(DiaryProvider diary, SettingsProvider settings) {
   final total = diary.totalBurnHc;
   if (total == null) return 0;
+  if ((diary.bmrHc ?? settings.bmr) <= 0) return 0;
   final workoutsTotal = diary.workouts.fold<int>(
     0,
     (s, w) => s + (w.totalKcal ?? w.activeKcal),
   );
-  final resting = total - workoutsTotal - diary.ambientActiveKcal;
-  return resting > 0 ? resting : 0;
+  final resting = _restingKcal(diary, settings);
+  final other = total - workoutsTotal - diary.ambientActiveKcal - resting;
+  return other > 0 ? other : 0;
 }
 
 int _computeExpenditure(DiaryProvider diary, SettingsProvider settings) {
@@ -134,7 +157,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           _ActivitiesCard(
                             workouts: diary.workouts,
                             ambientActiveKcal: diary.ambientActiveKcal,
-                            restingKcal: _restingKcal(diary),
+                            restingKcal: _restingKcal(diary, settings),
+                            otherMovementKcal:
+                                _otherMovementKcal(diary, settings),
                           ),
                         ],
                         const SizedBox(height: 20),
@@ -375,15 +400,21 @@ class _ActivitiesCard extends StatelessWidget {
   final List<HcWorkout> workouts;
   final int ambientActiveKcal;
 
-  /// HC TOTAL minus everything itemised below — i.e. basal-at-rest plus
-  /// movement that wasn't claimed by a workout or the ambient stream.
-  /// Zero when HC TOTAL is unavailable, in which case the row is hidden.
+  /// User's BMR scaled to elapsed day, anchored to a known baseline rather
+  /// than absorbing every loose kcal from HC TOTAL. Zero when no BMR is
+  /// available (row hidden).
   final int restingKcal;
+
+  /// HC TOTAL leftover after workouts + ambient + resting — i.e. light
+  /// movement HC tracked but didn't categorise as ACTIVE. Zero when not
+  /// computable (row hidden).
+  final int otherMovementKcal;
 
   const _ActivitiesCard({
     required this.workouts,
     required this.ambientActiveKcal,
     required this.restingKcal,
+    required this.otherMovementKcal,
   });
 
   @override
@@ -395,7 +426,8 @@ class _ActivitiesCard extends StatelessWidget {
       0,
       (s, w) => s + (w.totalKcal ?? w.activeKcal),
     );
-    final totalKcal = workoutSum + ambientActiveKcal + restingKcal;
+    final totalKcal =
+        workoutSum + ambientActiveKcal + restingKcal + otherMovementKcal;
     return Card(
       elevation: 0,
       clipBehavior: Clip.antiAlias,
@@ -425,6 +457,8 @@ class _ActivitiesCard extends StatelessWidget {
           children: [
             for (final w in workouts) _ActivityRow(workout: w),
             if (ambientActiveKcal > 0) _AmbientRow(kcal: ambientActiveKcal),
+            if (otherMovementKcal > 0)
+              _OtherMovementRow(kcal: otherMovementKcal),
             if (restingKcal > 0) _RestingRow(kcal: restingKcal),
           ],
         ),
@@ -499,7 +533,50 @@ class _RestingRow extends StatelessWidget {
               children: [
                 Text('Resting', style: theme.textTheme.bodyMedium),
                 Text(
-                  'Basal calories Health Connect tracked for you',
+                  'BMR for the elapsed day',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '$kcal kcal',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OtherMovementRow extends StatelessWidget {
+  final int kcal;
+  const _OtherMovementRow({required this.kcal});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(
+            Icons.accessibility_new,
+            size: 20,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Other activity', style: theme.textTheme.bodyMedium),
+                Text(
+                  'Light movement HC tracked outside workouts',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
