@@ -315,19 +315,18 @@ class _SummaryCard extends StatelessWidget {
                     children: [
                       Text(
                         remaining.abs().toStringAsFixed(0),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
                           color: ringValueColor,
-                          height: 1.0,
+                          height: 1.1,
                         ),
                       ),
-                      const SizedBox(height: 1),
                       Text(
                         ringTagline,
-                        style: theme.textTheme.labelSmall?.copyWith(
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
                           color: mutedColor,
-                          fontSize: 10,
-                          height: 1.0,
+                          height: 1.1,
                         ),
                       ),
                     ],
