@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.8.0](https://github.com/TheQueenIsDead/calora/compare/calora-v1.7.0...calora-v1.8.0) (2026-06-22)
+
+
+### Features
+
+* **home:** simplify calorie ring to a signed number, drop taglines ([59e796c](https://github.com/TheQueenIsDead/calora/commit/59e796c2dd6317e5e30c1b7b416dc9f8c585ed96))
+* **recipes:** freeze per-log snapshots so logged meals are immutable ([269969e](https://github.com/TheQueenIsDead/calora/commit/269969e22e7085501e25ae4171305bc5ff18b16c))
+* **trends:** show net balance so a deficit reads as negative and green ([caf50cf](https://github.com/TheQueenIsDead/calora/commit/caf50cfad3906c87dcb86cf2ab3014b81a26f3c3))
+
+
+### Bug Fixes
+
+* **trends:** skip days with no logged intake in the deficit chart ([23f24c7](https://github.com/TheQueenIsDead/calora/commit/23f24c7dd423f5848acc16778b4ba1e70677de8c))
+
 ## [1.7.0](https://github.com/TheQueenIsDead/calora/compare/calora-v1.6.0...calora-v1.7.0) (2026-06-20)
 
 
