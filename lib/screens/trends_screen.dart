@@ -212,13 +212,14 @@ class _DeficitChart extends StatelessWidget {
   });
 
   /// Per-day deficit (out - intake). Positive = under-eating that day,
-  /// negative = surplus. Returns null when the day has no intake AND no
-  /// recorded expenditure so we don't render a fake bar for untracked days.
+  /// negative = surplus. Returns null when nothing was logged that day: a
+  /// deficit measured against zero intake is just an un-logged day (it would
+  /// otherwise draw a huge phantom bar on any day with Health Connect data).
   int? _deficitFor(DateTime date) {
     final key = date.toIso8601String().substring(0, 10);
     final intake = dailyCalories[key] ?? 0;
+    if (intake <= 0) return null;
     final out = dailyExpenditure[key] ?? (tdee > 0 ? tdee : 0);
-    if (intake <= 0 && out <= 0) return null;
     return (out - intake).round();
   }
 
