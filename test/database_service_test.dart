@@ -154,6 +154,44 @@ void main() {
     expect(after.any((e) => e.id == entry.id), isFalse);
   });
 
+  test(
+    'deleteDiaryEntry: prunes the orphaned recipe snapshot food row',
+    () async {
+      final food = _food(id: const Uuid().v4(), calories: 100);
+      await DatabaseService.instance.saveFood(food);
+      final recipeId = await DatabaseService.instance.saveRecipeWithItems(
+        'Prunable Recipe',
+        null,
+        [(foodId: food.id, grams: 100.0)],
+      );
+      final date = DateTime(2099, 4, 1);
+      final recipeFood = await DatabaseService.instance.getRecipeAsFood(
+        recipeId,
+      );
+      await DatabaseService.instance.addDiaryEntry(
+        _entry(recipeFood!, date: date, grams: 100),
+      );
+
+      final logged = (await DatabaseService.instance.getEntriesForDate(
+        date,
+      )).single;
+      final snapshotId = logged.food.id;
+      expect(snapshotId.startsWith('recipe_${recipeId}__'), isTrue);
+      // The snapshot exists as its own foods row while referenced.
+      expect(await DatabaseService.instance.getFoodById(snapshotId), isNotNull);
+
+      await DatabaseService.instance.deleteDiaryEntry(logged.id);
+
+      // With no entry referencing it, the snapshot row is gone…
+      expect(await DatabaseService.instance.getFoodById(snapshotId), isNull);
+      // …but the recipe itself is untouched.
+      expect(
+        await DatabaseService.instance.getRecipeAsFood(recipeId),
+        isNotNull,
+      );
+    },
+  );
+
   test('updateEntryMeal: changes the meal column in DB', () async {
     final food = _food();
     final entry = _entry(
@@ -281,6 +319,57 @@ void main() {
       expect(recipe.id, 'recipe_$recipeId');
       // 200g total / 1 serving → servingGrams = 200
       expect(recipe.servingGrams, closeTo(200, 0.5));
+    },
+  );
+
+  test(
+    'addDiaryEntry: logged recipe is an immutable snapshot, unaffected by later edits',
+    () async {
+      final lean = _food(id: const Uuid().v4(), calories: 100);
+      final rich = _food(id: const Uuid().v4(), calories: 300);
+      await DatabaseService.instance.saveFood(lean);
+      await DatabaseService.instance.saveFood(rich);
+      final recipeId = await DatabaseService.instance.saveRecipeWithItems(
+        'Immutable Recipe',
+        null,
+        [(foodId: lean.id, grams: 100.0)],
+      );
+      final date = DateTime(2026, 1, 1);
+
+      // Log the recipe at its original density (100 kcal/100g → 100 kcal).
+      final v1 = await DatabaseService.instance.getRecipeAsFood(recipeId);
+      await DatabaseService.instance.addDiaryEntry(
+        _entry(v1!, date: date, grams: 100),
+      );
+
+      final logged = (await DatabaseService.instance.getEntriesForDate(
+        date,
+      )).single;
+      expect(logged.calories, closeTo(100, 0.5));
+      // The entry references a per-log snapshot, not the bare recipe id.
+      expect(logged.food.id.startsWith('recipe_${recipeId}__'), isTrue);
+
+      // Add 100g of a 300 kcal/100g food → recipe is now 200 kcal/100g.
+      await DatabaseService.instance.addRecipeItem(recipeId, rich.id, 100.0);
+
+      // The already-logged entry keeps its original value…
+      final afterEdit = (await DatabaseService.instance.getEntriesForDate(
+        date,
+      )).single;
+      expect(afterEdit.calories, closeTo(100, 0.5));
+
+      // …while a fresh logging captures the new value, leaving the old intact.
+      final v2 = await DatabaseService.instance.getRecipeAsFood(recipeId);
+      await DatabaseService.instance.addDiaryEntry(
+        _entry(v2!, date: date, grams: 100),
+      );
+      final calories = (await DatabaseService.instance.getEntriesForDate(date))
+          .map((e) => e.calories)
+          .toList()
+        ..sort();
+      expect(calories, hasLength(2));
+      expect(calories.first, closeTo(100, 0.5));
+      expect(calories.last, closeTo(200, 0.5));
     },
   );
 

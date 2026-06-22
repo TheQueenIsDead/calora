@@ -39,6 +39,9 @@ class _FoodDetailScreenState extends State<FoodDetailScreen>
   late Meal _meal;
   late TabController _tabController;
 
+  /// Ingredients of the recipe being viewed, or null for non-recipe foods.
+  List<Map<String, dynamic>>? _recipeItems;
+
   @override
   void initState() {
     super.initState();
@@ -59,6 +62,20 @@ class _FoodDetailScreenState extends State<FoodDetailScreen>
         }
       });
     }
+
+    _loadRecipeItems();
+  }
+
+  /// Recipe foods carry a `recipe_<id>` (or per-log snapshot `recipe_<id>__<uuid>`)
+  /// id; pull the recipe's current ingredients so they can be listed.
+  Future<void> _loadRecipeItems() async {
+    final id = widget.food.id;
+    if (!id.startsWith('recipe_')) return;
+    final rest = id.substring('recipe_'.length);
+    final sep = rest.indexOf('__');
+    final recipeId = sep >= 0 ? rest.substring(0, sep) : rest;
+    final items = await DatabaseService.instance.getRecipeItems(recipeId);
+    if (mounted) setState(() => _recipeItems = items);
   }
 
   @override
@@ -469,7 +486,12 @@ class _FoodDetailScreenState extends State<FoodDetailScreen>
             onMealChanged: (m) => setState(() => _meal = m),
             onGramsChanged: () => setState(() {}),
           ),
-          _MacrosPage(food: food, grams: _grams, calories: _calories),
+          _MacrosPage(
+            food: food,
+            grams: _grams,
+            calories: _calories,
+            recipeItems: _recipeItems,
+          ),
         ],
       ),
       bottomNavigationBar: SafeArea(
@@ -658,11 +680,13 @@ class _MacrosPage extends StatelessWidget {
   final FoodItem food;
   final double grams;
   final double calories;
+  final List<Map<String, dynamic>>? recipeItems;
 
   const _MacrosPage({
     required this.food,
     required this.grams,
     required this.calories,
+    this.recipeItems,
   });
 
   @override
@@ -673,6 +697,10 @@ class _MacrosPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (recipeItems != null && recipeItems!.isNotEmpty) ...[
+          _IngredientsCard(items: recipeItems!),
+          const SizedBox(height: 12),
+        ],
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -769,6 +797,53 @@ class _MacrosPage extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Recipe ingredients ────────────────────────────────────────────────────────
+
+class _IngredientsCard extends StatelessWidget {
+  final List<Map<String, dynamic>> items;
+
+  const _IngredientsCard({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Ingredients', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 12),
+            for (final item in items)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        FoodItem.formatName(item['name'] as String),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      '${(item['grams'] as num).toStringAsFixed(0)}g · '
+                      '${((item['grams'] as num) * (item['calories_per_100g'] as num) / 100).toStringAsFixed(0)} kcal',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

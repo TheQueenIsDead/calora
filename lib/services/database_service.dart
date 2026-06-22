@@ -422,10 +422,31 @@ class DatabaseService {
         ...userResults.where((f) => !seen.contains(f.id)),
       ];
 
-      return _rankByRelevance(merged, term, words);
+      final recentIds = await _recentlyLoggedFoodIds();
+      return _rankByRelevance(merged, term, words, recentIds: recentIds);
     } catch (e) {
       debugPrint('searchFoods error: $e');
       return [];
+    }
+  }
+
+  /// Food ids logged in the last 60 days, used to float foods the user
+  /// actually eats towards the top of search results.
+  Future<Set<String>> _recentlyLoggedFoodIds() async {
+    try {
+      final u = await userDb;
+      final cutoff = DateTime.now()
+          .subtract(const Duration(days: 60))
+          .toIso8601String()
+          .substring(0, 10);
+      final rows = await u.rawQuery(
+        'SELECT DISTINCT food_id FROM diary_entries WHERE date >= ?',
+        [cutoff],
+      );
+      return rows.map((r) => r['food_id'] as String).toSet();
+    } catch (e) {
+      debugPrint('_recentlyLoggedFoodIds error: $e');
+      return {};
     }
   }
 
@@ -434,10 +455,16 @@ class DatabaseService {
     Database d,
     List<String> words, {
     int limit = 60,
+    bool excludeRecipes = false,
   }) async {
-    final clause = words
+    final clauses = words
         .map((_) => '(LOWER(name) LIKE ? OR LOWER(brand) LIKE ?)')
-        .join(' AND ');
+        .toList();
+    // Recipes surface through the dedicated recipe strip (getRecipesAsFood),
+    // so keep their food rows — including the per-log snapshots — out of the
+    // food search results to avoid double-listing.
+    if (excludeRecipes) clauses.add("id NOT LIKE 'recipe\\_%' ESCAPE '\\'");
+    final clause = clauses.join(' AND ');
     final args = words.expand((w) => ['%$w%', '%$w%']).toList();
     final rows = await d.rawQuery(
       'SELECT * FROM foods WHERE $clause LIMIT $limit',
@@ -449,11 +476,37 @@ class DatabaseService {
   Future<List<FoodItem>> _searchUserFoods(List<String> words) async {
     try {
       final u = await userDb;
-      return _likeSearch(u, words, limit: 20);
+      return _likeSearch(u, words, limit: 20, excludeRecipes: true);
     } catch (e) {
       debugPrint('_searchUserFoods error: $e');
       return [];
     }
+  }
+
+  /// Collapses per-log recipe snapshots (`recipe_<id>__<uuid>`) back to their
+  /// recipe so a recipe appears once in the recents / previous-meal strips
+  /// rather than once per logging. Non-recipe foods group by their own id.
+  static const _recipeGroupKey =
+      "CASE WHEN substr(f.id, 1, 7) = 'recipe_' AND instr(f.id, '__') > 0 "
+      "THEN substr(f.id, 1, instr(f.id, '__') - 1) ELSE f.id END";
+
+  /// Swaps any recipe row — live `recipe_<id>` or a per-log snapshot
+  /// `recipe_<id>__<uuid>` — for the recipe's CURRENT computed nutrition, so
+  /// suggestion strips reflect later edits instead of a stale logged value.
+  /// Falls back to the stored row if the recipe no longer exists.
+  Future<List<FoodItem>> _withLiveRecipes(List<FoodItem> foods) async {
+    final out = <FoodItem>[];
+    for (final f in foods) {
+      if (!f.id.startsWith('recipe_')) {
+        out.add(f);
+        continue;
+      }
+      final rest = f.id.substring('recipe_'.length);
+      final sep = rest.indexOf('__');
+      final recipeId = sep >= 0 ? rest.substring(0, sep) : rest;
+      out.add(await getRecipeAsFood(recipeId) ?? f);
+    }
+    return out;
   }
 
   /// Returns all foods from the most recent logged instance of [meal] on a
@@ -473,12 +526,12 @@ class DatabaseService {
         WHERE e.meal = ? AND e.date = (
           SELECT MAX(date) FROM diary_entries WHERE meal = ? AND date < ?
         )
-        GROUP BY f.id
+        GROUP BY $_recipeGroupKey
         ORDER BY MIN(e.rowid)
       ''',
         [meal.name, meal.name, dateStr],
       );
-      return rows.map((r) => FoodItem.fromMap(r)).toList();
+      return _withLiveRecipes(rows.map(FoodItem.fromMap).toList());
     } catch (e) {
       debugPrint('getLastMealFoods error: $e');
       return [];
@@ -509,14 +562,14 @@ class DatabaseService {
         FROM diary_entries e
         JOIN foods f ON f.id = e.food_id
         WHERE e.date BETWEEN ? AND ?
-        GROUP BY f.id
+        GROUP BY $_recipeGroupKey
         ORDER BY is_prev_meal DESC, last_date DESC
         LIMIT ?
       ''',
         [dateStr, previousMeal.name, cutoff, dateStr, limit],
       );
 
-      return rows.map((r) => FoodItem.fromMap(r)).toList();
+      return _withLiveRecipes(rows.map(FoodItem.fromMap).toList());
     } catch (e) {
       debugPrint('getRecentFoods error: $e');
       return [];
@@ -526,21 +579,40 @@ class DatabaseService {
   List<FoodItem> _rankByRelevance(
     List<FoodItem> items,
     String term,
-    List<String> words,
-  ) {
-    int score(FoodItem item) {
-      final n = item.name.toLowerCase();
+    List<String> words, {
+    Set<String> recentIds = const {},
+  }) {
+    // Match quality, best first: exact name, prefix, substring, per-word only.
+    int tier(String n) {
       if (n == term) return 0;
       if (n.startsWith(term)) return 1;
       if (n.contains(term)) return 2;
+      return 3;
+    }
+
+    // How much of the name is "extra" beyond the query. Lower means the name
+    // is closer to the query itself, so whole ingredients ("Cheese") outrank
+    // branded products ("Kraft Mac and Cheese") within the same tier.
+    int closeness(String n) {
       final posSum = words.fold(0, (s, w) {
         final i = n.indexOf(w);
         return s + (i < 0 ? 500 : i);
       });
-      return 3 + posSum + n.length;
+      return n.length + posSum;
     }
 
-    final sorted = [...items]..sort((a, b) => score(a).compareTo(score(b)));
+    final sorted = [...items]
+      ..sort((a, b) {
+        final na = a.name.toLowerCase();
+        final nb = b.name.toLowerCase();
+        final ta = tier(na), tb = tier(nb);
+        if (ta != tb) return ta - tb;
+        // Within the same match tier, recently logged foods come first.
+        final ra = recentIds.contains(a.id) ? 0 : 1;
+        final rb = recentIds.contains(b.id) ? 0 : 1;
+        if (ra != rb) return ra - rb;
+        return closeness(na) - closeness(nb);
+      });
     return sorted.take(30).toList();
   }
 
@@ -780,10 +852,22 @@ class DatabaseService {
   Future<void> addDiaryEntry(DiaryEntry entry) async {
     try {
       final d = await userDb;
-      await saveFood(entry.food);
+      var food = entry.food;
+      final map = entry.toMap();
+      // Recipes are editable and recomputed from their current ingredients, so
+      // a bare `recipe_<id>` food row is mutable: editing or re-logging the
+      // recipe would silently rewrite the nutrition of meals already logged.
+      // Freeze an immutable per-log snapshot (`recipe_<id>__<uuid>`) instead so
+      // past entries keep the values they had when logged. Already-snapshotted
+      // foods (re-logged from a suggestion strip) are referenced as-is.
+      if (food.id.startsWith('recipe_') && !food.id.contains('__')) {
+        food = food.copyWith(id: '${food.id}__${const Uuid().v4()}');
+        map['food_id'] = food.id;
+      }
+      await saveFood(food);
       await d.insert(
         'diary_entries',
-        entry.toMap(),
+        map,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     } catch (e) {
@@ -795,10 +879,40 @@ class DatabaseService {
   Future<void> deleteDiaryEntry(String id) async {
     try {
       final d = await userDb;
+      // Note the food this entry referenced before removing it, so an orphaned
+      // per-log recipe snapshot can be garbage-collected afterwards.
+      final rows = await d.query(
+        'diary_entries',
+        columns: ['food_id'],
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
       await d.delete('diary_entries', where: 'id = ?', whereArgs: [id]);
+      if (rows.isNotEmpty) {
+        await _pruneRecipeSnapshot(d, rows.first['food_id'] as String);
+      }
     } catch (e) {
       debugPrint('deleteDiaryEntry error: $e');
       rethrow;
+    }
+  }
+
+  /// Deletes a per-log recipe snapshot food (`recipe_<id>__<uuid>`) once no
+  /// diary entry references it. Each logging creates its own snapshot row, so
+  /// removing the entry leaves the row as dead weight in the foods table.
+  /// Shared/live foods (recipes, OFF, custom) are never touched.
+  Future<void> _pruneRecipeSnapshot(DatabaseExecutor d, String foodId) async {
+    if (!foodId.startsWith('recipe_') || !foodId.contains('__')) return;
+    final refs = await d.query(
+      'diary_entries',
+      columns: ['id'],
+      where: 'food_id = ?',
+      whereArgs: [foodId],
+      limit: 1,
+    );
+    if (refs.isEmpty) {
+      await d.delete('foods', where: 'id = ?', whereArgs: [foodId]);
     }
   }
 
@@ -887,17 +1001,28 @@ class DatabaseService {
     try {
       final d = await userDb;
       final dateStr = date.toIso8601String().substring(0, 10);
-      final rows = await d.query(
-        'diary_entries',
-        where: 'date = ?',
-        whereArgs: [dateStr],
+      // addDiaryEntry always saves the food into userDb, so a single join
+      // resolves every entry's food in one query instead of N getFoodById hops.
+      final rows = await d.rawQuery(
+        '''
+        SELECT e.id AS entry_id, e.grams AS entry_grams,
+               e.date AS entry_date, e.meal AS entry_meal, f.*
+        FROM diary_entries e
+        JOIN foods f ON f.id = e.food_id
+        WHERE e.date = ?
+        ORDER BY e.rowid
+      ''',
+        [dateStr],
       );
-      final entries = <DiaryEntry>[];
-      for (final row in rows) {
-        final food = await getFoodById(row['food_id'] as String);
-        if (food != null) entries.add(DiaryEntry.fromMap(row, food));
-      }
-      return entries;
+      return [
+        for (final row in rows)
+          DiaryEntry.fromMap({
+            'id': row['entry_id'],
+            'grams': row['entry_grams'],
+            'date': row['entry_date'],
+            'meal': row['entry_meal'],
+          }, FoodItem.fromMap(row)),
+      ];
     } catch (e) {
       debugPrint('getEntriesForDate error: $e');
       return [];

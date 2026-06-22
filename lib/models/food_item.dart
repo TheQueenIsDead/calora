@@ -40,6 +40,25 @@ class FoodItem {
   double carbsForGrams(double grams) => carbsPer100g * grams / 100;
   double proteinForGrams(double grams) => proteinPer100g * grams / 100;
 
+  FoodItem copyWith({String? id}) => FoodItem(
+    id: id ?? this.id,
+    name: name,
+    brand: brand,
+    barcode: barcode,
+    caloriesPer100g: caloriesPer100g,
+    fatPer100g: fatPer100g,
+    saturatedFatPer100g: saturatedFatPer100g,
+    carbsPer100g: carbsPer100g,
+    sugarsPer100g: sugarsPer100g,
+    fiberPer100g: fiberPer100g,
+    proteinPer100g: proteinPer100g,
+    sodiumPer100g: sodiumPer100g,
+    servingSize: servingSize,
+    servingGrams: servingGrams,
+    imageUrl: imageUrl,
+    source: source,
+  );
+
   /// "Apple, red skin, raw" → "Apple (Red Skin, Raw)"
   static String formatName(String raw) {
     String titleWord(String w) =>
