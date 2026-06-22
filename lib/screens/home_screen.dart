@@ -315,19 +315,19 @@ class _SummaryCard extends StatelessWidget {
     final deficit = expenditure > 0 ? expenditure - intake : null;
 
     final Color ringValueColor;
-    final String ringTagline;
     if (isOverTdee) {
       ringValueColor = theme.colorScheme.error;
-      ringTagline = 'over TDEE';
     } else if (isOverGoal) {
       ringValueColor = Colors.amber.shade800;
-      ringTagline = 'over goal';
     } else {
       ringValueColor = theme.colorScheme.onPrimaryContainer;
-      ringTagline = 'left';
     }
     final mutedColor = theme.colorScheme.onPrimaryContainer
         .withValues(alpha: 0.7);
+    // Plain number while under goal; a leading "+" flags an over state. The
+    // amber/red ring colour carries goal-vs-surplus severity instead of a word.
+    final ringValue =
+        '${isOverGoal ? '+' : ''}${remaining.abs().toStringAsFixed(0)}';
 
     return Card(
       elevation: 0,
@@ -345,26 +345,12 @@ class _SummaryCard extends StatelessWidget {
                   : isOverGoal
                   ? Colors.amber
                   : null,
-              centerChild: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    remaining.abs().toStringAsFixed(0),
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: ringValueColor,
-                      height: 1.1,
-                    ),
-                  ),
-                  Text(
-                    ringTagline,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: mutedColor,
-                      height: 1.1,
-                    ),
-                  ),
-                ],
+              centerChild: Text(
+                ringValue,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: ringValueColor,
+                ),
               ),
             ),
             const SizedBox(width: 16),
