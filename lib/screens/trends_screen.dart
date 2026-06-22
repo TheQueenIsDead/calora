@@ -211,16 +211,17 @@ class _DeficitChart extends StatelessWidget {
     required this.tdee,
   });
 
-  /// Per-day deficit (out - intake). Positive = under-eating that day,
-  /// negative = surplus. Returns null when nothing was logged that day: a
-  /// deficit measured against zero intake is just an un-logged day (it would
-  /// otherwise draw a huge phantom bar on any day with Health Connect data).
-  int? _deficitFor(DateTime date) {
+  /// Per-day net energy balance (intake - out). Negative = a deficit (ate
+  /// under expenditure), positive = a surplus. Returns null when nothing was
+  /// logged that day: a balance measured against zero intake is just an
+  /// un-logged day (it would otherwise draw a huge phantom bar on any day
+  /// with Health Connect data).
+  int? _balanceFor(DateTime date) {
     final key = date.toIso8601String().substring(0, 10);
     final intake = dailyCalories[key] ?? 0;
     if (intake <= 0) return null;
     final out = dailyExpenditure[key] ?? (tdee > 0 ? tdee : 0);
-    return (out - intake).round();
+    return (intake - out).round();
   }
 
   @override
@@ -232,12 +233,12 @@ class _DeficitChart extends StatelessWidget {
     double maxAbs = 0;
     for (var i = 0; i < days; i++) {
       final date = today.subtract(Duration(days: days - 1 - i));
-      final d = _deficitFor(date);
-      if (d == null) {
+      final balance = _balanceFor(date);
+      if (balance == null) {
         bars.add(BarChartGroupData(x: i, barRods: const []));
         continue;
       }
-      final mag = d.abs().toDouble();
+      final mag = balance.abs().toDouble();
       if (mag > maxAbs) maxAbs = mag;
       bars.add(
         BarChartGroupData(
@@ -245,8 +246,11 @@ class _DeficitChart extends StatelessWidget {
           barRods: [
             BarChartRodData(
               fromY: 0,
-              toY: d.toDouble(),
-              color: d >= 0 ? theme.colorScheme.primary : theme.colorScheme.error,
+              toY: balance.toDouble(),
+              // Deficit (negative) is the goal → green; surplus (positive) → red.
+              color: balance > 0
+                  ? theme.colorScheme.error
+                  : theme.colorScheme.primary,
               width: 8,
               borderRadius: BorderRadius.circular(3),
             ),
@@ -361,12 +365,13 @@ class _DeficitChart extends StatelessWidget {
                         final date = today.subtract(
                           Duration(days: days - 1 - group.x),
                         );
-                        final d = _deficitFor(date);
-                        if (d == null) return null;
+                        final balance = _balanceFor(date);
+                        if (balance == null) return null;
+                        final isDeficit = balance < 0;
                         return BarTooltipItem(
                           '${DateFormat('d MMM').format(date)}\n'
-                          '${d >= 0 ? '+' : '−'}${d.abs()} kcal '
-                          '(${d >= 0 ? 'deficit' : 'surplus'})',
+                          '${isDeficit ? '−' : '+'}${balance.abs()} kcal '
+                          '(${isDeficit ? 'deficit' : 'surplus'})',
                           theme.textTheme.labelSmall!.copyWith(
                             color: theme.colorScheme.onSurface,
                           ),
