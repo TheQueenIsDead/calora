@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/TheQueenIsDead/calora/compare/calora-v1.8.0...calora-v1.8.1) (2026-06-27)
+
+
+### Bug Fixes
+
+* **recipes:** re-adding an edited recipe defaults to its current serving ([77eaa3e](https://github.com/TheQueenIsDead/calora/commit/77eaa3e7150a599edbc021e36e46c819a4f0393a))
+
 ## [1.8.0](https://github.com/TheQueenIsDead/calora/compare/calora-v1.7.0...calora-v1.8.0) (2026-06-22)
 
 
