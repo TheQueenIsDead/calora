@@ -53,8 +53,10 @@ class _FoodDetailScreenState extends State<FoodDetailScreen>
     );
     _meal = widget.defaultMeal;
 
-    // Load last-used grams when no explicit override is provided.
-    if (widget.initialGrams == null) {
+    // Load last-used grams when no explicit override is provided. Skip it for
+    // recipes: their serving size tracks the current ingredients, so a stale
+    // last-used portion would mask calories added by editing the recipe.
+    if (widget.initialGrams == null && !widget.food.id.startsWith('recipe_')) {
       DatabaseService.instance.getLastUsedGrams(widget.food.id).then((g) {
         if (g != null && mounted) {
           _gramsController.text = g.toStringAsFixed(0);
