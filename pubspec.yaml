@@ -48,7 +48,7 @@ dependencies:
   provider: ^6.1.0
   intl: ^0.20.3
   fl_chart: ^1.2.0
-  shared_preferences: ^2.3.0
+  shared_preferences: ^2.5.6
   uuid: ^4.6.0
   flutter_svg: ^2.1.0
   flutter_slidable: ^4.0.3
